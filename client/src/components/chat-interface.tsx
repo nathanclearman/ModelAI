@@ -16,13 +16,17 @@ interface ChatInterfaceProps {
   modelName?: string;
   onSendMessage?: (message: string) => void;
   initialMessages?: Message[];
+  isLoading?: boolean;
 }
 
-export function ChatInterface({ modelName = "AI Assistant", onSendMessage, initialMessages = [] }: ChatInterfaceProps) {
+export function ChatInterface({ modelName = "AI Assistant", onSendMessage, initialMessages = [], isLoading: externalIsLoading = false }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMessages(initialMessages);
+  }, [initialMessages]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -31,30 +35,14 @@ export function ChatInterface({ modelName = "AI Assistant", onSendMessage, initi
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || externalIsLoading) return;
 
-    const userMessage: Message = {
-      role: "user",
-      content: input.trim(),
-      timestamp: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    const trimmedInput = input.trim();
     setInput("");
-    setIsLoading(true);
 
-    console.log("Sending message:", input);
-    onSendMessage?.(input);
-
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: "This is a demo response. In the full application, this will be replaced with actual AI-generated responses.",
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setIsLoading(false);
-    }, 1000);
+    if (onSendMessage) {
+      onSendMessage(trimmedInput);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -116,7 +104,7 @@ export function ChatInterface({ modelName = "AI Assistant", onSendMessage, initi
               )}
             </div>
           ))}
-          {isLoading && (
+          {externalIsLoading && messages.length > 0 && messages[messages.length - 1].role === "assistant" && messages[messages.length - 1].content === "" && (
             <div className="flex gap-3">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary text-primary-foreground">
@@ -147,7 +135,7 @@ export function ChatInterface({ modelName = "AI Assistant", onSendMessage, initi
           />
           <Button
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || externalIsLoading}
             size="icon"
             className="h-[60px] w-[60px]"
             data-testid="button-send-message"

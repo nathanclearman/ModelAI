@@ -78,6 +78,7 @@ export default function Chat() {
             description: chunk.error,
             variant: "destructive",
           });
+          setMessages((prev) => prev.slice(0, -1));
           break;
         }
 
@@ -104,6 +105,7 @@ export default function Chat() {
         description: error.message || "Failed to send message",
         variant: "destructive",
       });
+      setMessages((prev) => prev.slice(0, -1));
     } finally {
       setIsStreaming(false);
     }
@@ -184,6 +186,7 @@ export default function Chat() {
             modelName={model?.name || "AI Assistant"}
             initialMessages={messages}
             onSendMessage={handleSendMessage}
+            isLoading={isStreaming}
           />
         </div>
         <ModelConfigPanel
