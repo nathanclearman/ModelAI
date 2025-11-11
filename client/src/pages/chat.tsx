@@ -4,11 +4,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { ChatInterface } from "@/components/chat-interface";
 import { ModelConfigPanel, type ModelConfig } from "@/components/model-config-panel";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Settings, AlertTriangle } from "lucide-react";
 import { streamChat, createModel, updateModel } from "@/lib/api";
 import { type AIModel, type Message } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 export default function Chat() {
   const [, params] = useRoute("/chat/:modelId/:conversationId?");
@@ -19,6 +21,12 @@ export default function Chat() {
   const [conversationId, setConversationId] = useState<string | undefined>(urlConversationId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  useEffect(() => {
+    const apiKey = sessionStorage.getItem("openai_api_key");
+    setHasApiKey(!!apiKey);
+  }, []);
 
   const { data: model, isLoading } = useQuery<AIModel>({
     queryKey: ["/api/models", modelId],
@@ -179,6 +187,23 @@ export default function Chat() {
           </p>
         </div>
       </div>
+
+      {!hasApiKey && model?.model?.startsWith("ft:") && (
+        <Alert className="border-orange-500/50 bg-orange-500/10">
+          <AlertTriangle className="h-4 w-4 text-orange-500" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-orange-700 dark:text-orange-400">
+              This model requires your OpenAI API key. Configure it in Settings to use fine-tuned models.
+            </span>
+            <Link href="/settings">
+              <Button variant="outline" size="sm" className="ml-4">
+                <Settings className="h-4 w-4 mr-2" />
+                Go to Settings
+              </Button>
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="h-[600px]">
