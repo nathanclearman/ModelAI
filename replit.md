@@ -23,7 +23,9 @@ Preferred communication style: Simple, everyday language.
 - ✅ Template system creating pre-configured AI models
 - ✅ Conversation history with search and filter capabilities
 - ✅ Model configuration management with custom prompts and parameters
-- ✅ Conversation export feature (individual and bulk export to JSON)
+- ✅ Conversation export feature (individual and bulk export to JSONL format)
+- ✅ Fine-tuned model import with OpenAI model ID validation
+- ✅ Switched to user's OpenAI API key for fine-tuned model support
 - ✅ End-to-end tested and verified working
 
 ## System Architecture
@@ -125,9 +127,9 @@ Preferred communication style: Simple, everyday language.
 ### External Dependencies
 
 **AI Service Integration:**
-- OpenAI API through Replit's AI Integrations service
-- Environment-based configuration for base URL and API key
-- Support for GPT-4o, GPT-4o Mini, GPT-4.1, and GPT-5 models
+- OpenAI API using user's personal API key
+- Direct connection to OpenAI's API servers
+- Support for all OpenAI models including GPT-4o, GPT-4o Mini, GPT-4.1, GPT-5, and fine-tuned models
 - Streaming responses using async generators for real-time chat
 
 **Third-Party Services:**
@@ -155,6 +157,5 @@ Preferred communication style: Simple, everyday language.
 
 **Environment Variables Required:**
 - `DATABASE_URL` - PostgreSQL connection string
-- `AI_INTEGRATIONS_OPENAI_BASE_URL` - OpenAI API base URL
-- `AI_INTEGRATIONS_OPENAI_API_KEY` - OpenAI API key
+- `OPENAI_API_KEY` - User's OpenAI API key for accessing OpenAI services
 - `NODE_ENV` - Environment mode (development/production)
