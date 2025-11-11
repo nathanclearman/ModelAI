@@ -1,18 +1,22 @@
 import { ConversationCard } from "@/components/conversation-card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
-import { useState } from "react";
+import { Search, Download, FileDown } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { type AIModel, type Conversation } from "@shared/schema";
 import { deleteConversation } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { exportConversations } from "@/lib/export";
 
 export default function History() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterModel, setFilterModel] = useState("all");
+  const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -70,6 +74,67 @@ export default function History() {
     return matchesSearch && matchesModel;
   });
 
+  useEffect(() => {
+    const validIds = new Set(conversations.map((c) => c.id));
+    const newSelection = new Set(
+      Array.from(selectedConversations).filter((id) => validIds.has(id))
+    );
+    if (newSelection.size !== selectedConversations.size) {
+      setSelectedConversations(newSelection);
+    }
+  }, [conversations]);
+
+  const handleToggleSelection = (conversationId: string) => {
+    const newSelection = new Set(selectedConversations);
+    if (newSelection.has(conversationId)) {
+      newSelection.delete(conversationId);
+    } else {
+      newSelection.add(conversationId);
+    }
+    setSelectedConversations(newSelection);
+  };
+
+  const handleToggleAll = () => {
+    if (selectedConversations.size === filteredConversations.length) {
+      setSelectedConversations(new Set());
+    } else {
+      setSelectedConversations(new Set(filteredConversations.map((c) => c.id)));
+    }
+  };
+
+  const handleExportSelected = () => {
+    const conversationsToExport = conversations.filter((c) =>
+      selectedConversations.has(c.id)
+    );
+    
+    if (conversationsToExport.length === 0) {
+      toast({
+        title: "No Selection",
+        description: "Please select conversations to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    exportConversations(conversationsToExport, models);
+    setSelectedConversations(new Set());
+    toast({
+      title: "Success",
+      description: `Exported ${conversationsToExport.length} conversation${conversationsToExport.length > 1 ? "s" : ""}`,
+    });
+  };
+
+  const handleExportSingle = (conversationId: string) => {
+    const conversation = conversations.find((c) => c.id === conversationId);
+    if (conversation) {
+      exportConversations([conversation], models);
+      toast({
+        title: "Success",
+        description: "Conversation exported",
+      });
+    }
+  };
+
   return (
     <div className="space-y-16">
       <div className="py-12">
@@ -79,48 +144,97 @@ export default function History() {
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search conversations..."
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            data-testid="input-search-conversations"
-          />
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search conversations..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-conversations"
+            />
+          </div>
+          <Select value={filterModel} onValueChange={setFilterModel}>
+            <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-model">
+              <SelectValue placeholder="Filter by model" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Models</SelectItem>
+              {models.map((model) => (
+                <SelectItem key={model.id} value={model.id}>
+                  {model.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={filterModel} onValueChange={setFilterModel}>
-          <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-model">
-            <SelectValue placeholder="Filter by model" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Models</SelectItem>
-            {models.map((model) => (
-              <SelectItem key={model.id} value={model.id}>
-                {model.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        {filteredConversations.length > 0 && (
+          <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                checked={selectedConversations.size === filteredConversations.length && filteredConversations.length > 0}
+                onCheckedChange={handleToggleAll}
+                data-testid="checkbox-select-all"
+              />
+              <span className="text-sm text-muted-foreground">
+                {selectedConversations.size === 0
+                  ? "Select conversations to export"
+                  : `${selectedConversations.size} conversation${selectedConversations.size > 1 ? "s" : ""} selected`}
+              </span>
+            </div>
+            {selectedConversations.size > 0 && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleExportSelected}
+                className="gap-2"
+                data-testid="button-export-selected"
+              >
+                <Download className="h-4 w-4" />
+                Export Selected
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
         {filteredConversations.map((conversation) => {
           const messages = (conversation.messages as any[]) || [];
           const preview = messages.find((m) => m.role === "user")?.content || "No messages";
+          const isSelected = selectedConversations.has(conversation.id);
           
           return (
-            <ConversationCard
-              key={conversation.id}
-              title={conversation.title}
-              modelName={getModelName(conversation.modelId)}
-              timestamp={formatTimestamp(conversation.updatedAt)}
-              preview={preview.slice(0, 100)}
-              messageCount={messages.length}
-              onClick={() => setLocation(`/chat/${conversation.modelId}/${conversation.id}`)}
-              onDelete={() => handleDeleteConversation(conversation.id)}
-            />
+            <div key={conversation.id} className="flex items-center gap-3">
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => handleToggleSelection(conversation.id)}
+                data-testid={`checkbox-conversation-${conversation.id}`}
+              />
+              <div className="flex-1">
+                <ConversationCard
+                  title={conversation.title}
+                  modelName={getModelName(conversation.modelId)}
+                  timestamp={formatTimestamp(conversation.updatedAt)}
+                  preview={preview.slice(0, 100)}
+                  messageCount={messages.length}
+                  onClick={() => setLocation(`/chat/${conversation.modelId}/${conversation.id}`)}
+                  onDelete={() => handleDeleteConversation(conversation.id)}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleExportSingle(conversation.id)}
+                data-testid={`button-export-${conversation.id}`}
+                title="Export this conversation"
+              >
+                <FileDown className="h-5 w-5" />
+              </Button>
+            </div>
           );
         })}
       </div>
