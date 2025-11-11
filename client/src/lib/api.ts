@@ -47,9 +47,18 @@ export async function* streamChat(
   message: string,
   conversationId?: string
 ): AsyncGenerator<{ content?: string; done?: boolean; conversationId?: string; error?: string }> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const apiKey = sessionStorage.getItem("openai_api_key");
+  if (apiKey) {
+    headers["x-openai-api-key"] = apiKey;
+  }
+
   const response = await fetch("/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ modelId, message, conversationId }),
   });
 
