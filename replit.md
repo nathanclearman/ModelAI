@@ -23,6 +23,7 @@ Preferred communication style: Simple, everyday language.
 - ✅ Template system creating pre-configured AI models
 - ✅ Conversation history with search and filter capabilities
 - ✅ Model configuration management with custom prompts and parameters
+- ✅ Conversation export feature (individual and bulk export to JSON)
 - ✅ End-to-end tested and verified working
 
 ## System Architecture
@@ -58,7 +59,7 @@ Preferred communication style: Simple, everyday language.
 - Chat - Real-time streaming chat interface with AI models
 - Upload Model - Interface for importing custom pre-trained models
 - Templates - Gallery of pre-configured AI assistant templates
-- History - Conversation browsing and management
+- History - Conversation browsing, management, and export (individual or bulk)
 - Settings - Account and application preferences
 
 ### Backend Architecture
