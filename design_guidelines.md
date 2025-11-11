@@ -2,42 +2,54 @@
 
 ## Design Approach
 
-**Selected Approach:** Design System-Based (Linear/Notion-inspired SaaS)
+**Selected Approach:** Apple-Inspired Minimalism
 
-**Rationale:** This is a utility-focused productivity platform requiring efficient workflows, clear data presentation, and professional aesthetics. Drawing from modern SaaS tools like Linear, Notion, and Vercel's dashboard patterns for their exceptional information hierarchy and workspace design.
+**Rationale:** Creating a premium, sleek platform that feels sophisticated and effortless. Drawing inspiration from Apple's website design philosophy: generous white space, refined typography, subtle animations, and a focus on content over chrome.
 
 **Core Principles:**
-- Clarity over decoration
-- Information density without clutter
-- Scannable interfaces with strong visual hierarchy
-- Professional, focused workspace design
+- Extreme simplicity and clarity
+- Generous white space and breathing room
+- Large, bold typography with refined hierarchy
+- Subtle, smooth animations and transitions
+- Premium feel through restraint
+- Content-first approach
 
 ## Typography System
 
 **Font Stack:**
-- Primary: Inter (via Google Fonts) - for UI elements, labels, body text
-- Monospace: JetBrains Mono - for code snippets, model IDs, API responses
+- Primary: SF Pro Display style (Inter) - Clean, modern, highly legible
+- Monospace: SF Mono style (JetBrains Mono) - for technical content
 
-**Hierarchy:**
-- Page Titles: text-3xl font-semibold
-- Section Headers: text-xl font-semibold
-- Card Titles: text-lg font-medium
-- Body Text: text-base font-normal
-- Labels/Metadata: text-sm font-medium
-- Helper Text: text-xs
+**Hierarchy (Apple-inspired scale):**
+- Hero Titles: text-5xl md:text-6xl lg:text-7xl font-semibold tracking-tight
+- Page Titles: text-4xl md:text-5xl font-semibold tracking-tight
+- Section Headers: text-2xl md:text-3xl font-semibold tracking-tight
+- Card Titles: text-xl font-semibold
+- Body Text: text-lg font-normal leading-relaxed
+- Labels: text-base font-medium
+- Helper Text: text-sm text-muted-foreground
+
+**Typography Principles:**
+- Use larger sizes than typical - Apple goes big
+- Tight letter spacing (tracking-tight) for headlines
+- Generous line height (leading-relaxed) for readability
 
 ## Layout System
 
-**Spacing Primitives:** Use Tailwind units of 2, 4, 6, and 8 consistently
-- Component padding: p-4 or p-6
-- Section spacing: gap-6 or gap-8
-- Page margins: p-6 or p-8
-- Tight groupings: gap-2 or gap-4
+**Spacing Primitives (Generous Apple-style):**
+- Hero sections: py-20 md:py-32 lg:py-40
+- Page padding: px-6 md:px-12 lg:px-16
+- Component padding: p-8 md:p-12
+- Section spacing: gap-12 md:gap-16 lg:gap-24
+- Card spacing: gap-6 md:gap-8
+- Tight groupings: gap-4
 
 **Container Structure:**
-- Dashboard uses sidebar + main content layout (sidebar width: w-64)
-- Main content area: max-w-7xl with responsive padding
-- Cards and panels: rounded-lg with consistent padding (p-6)
+- Maximum content width: max-w-7xl
+- Generous margins and padding everywhere
+- Floating panels with backdrop blur
+- Clean, spacious sidebar (w-72) with subtle dividers
+- Full-bleed sections where appropriate
 
 ## Component Library
 

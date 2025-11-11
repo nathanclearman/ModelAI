@@ -29,8 +29,8 @@ function Router() {
 
 function App() {
   const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
+    "--sidebar-width": "18rem",
+    "--sidebar-width-icon": "4rem",
   };
 
   return (
@@ -41,12 +41,12 @@ function App() {
             <div className="flex h-screen w-full">
               <AppSidebar />
               <div className="flex flex-col flex-1">
-                <header className="flex items-center justify-between p-4 border-b">
+                <header className="flex items-center justify-between px-8 py-6 backdrop-blur-xl bg-background/80 sticky top-0 z-50 border-b border-border/40">
                   <SidebarTrigger data-testid="button-sidebar-toggle" />
                   <ThemeToggle />
                 </header>
                 <main className="flex-1 overflow-auto">
-                  <div className="container max-w-7xl mx-auto p-6 lg:p-8">
+                  <div className="container max-w-7xl mx-auto px-8 md:px-12 lg:px-16 py-8">
                     <Router />
                   </div>
                 </main>

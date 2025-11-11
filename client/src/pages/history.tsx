@@ -62,10 +62,10 @@ export default function History() {
   });
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-semibold mb-2">Conversation History</h1>
-        <p className="text-muted-foreground">
+    <div className="space-y-16">
+      <div className="py-12">
+        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Conversation History</h1>
+        <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
           View and manage your past AI conversations
         </p>
       </div>

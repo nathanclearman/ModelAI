@@ -65,10 +65,10 @@ const recentConversations = [
 
 export default function Dashboard() {
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-semibold mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">
+    <div className="space-y-16">
+      <div className="py-12">
+        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Dashboard</h1>
+        <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
           Manage your AI models and monitor their performance
         </p>
       </div>
@@ -146,16 +146,16 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/20">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
+      <Card className="bg-gradient-to-br from-primary/5 via-primary/3 to-background border-none shadow-lg">
+        <CardContent className="p-12">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
             <div>
-              <h3 className="text-lg font-semibold mb-2">Create Your Custom Model</h3>
-              <p className="text-sm text-muted-foreground max-w-xl">
+              <h3 className="text-3xl font-semibold mb-4 tracking-tight">Create Your Custom Model</h3>
+              <p className="text-lg text-muted-foreground max-w-2xl leading-relaxed">
                 Build a custom AI assistant tailored to your specific business needs with advanced configuration options
               </p>
             </div>
-            <Button size="lg" className="gap-2" data-testid="button-create-custom">
+            <Button size="lg" className="gap-2 text-base px-8 py-6 rounded-xl" data-testid="button-create-custom">
               <Plus className="h-5 w-5" />
               Create Model
             </Button>

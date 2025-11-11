@@ -48,28 +48,28 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Sparkles className="h-5 w-5" />
+      <SidebarHeader className="p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Sparkles className="h-6 w-6" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold">AI Platform</span>
-            <span className="text-xs text-muted-foreground">Business Edition</span>
+            <span className="text-base font-semibold">AI Platform</span>
+            <span className="text-sm text-muted-foreground">Business Edition</span>
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sm">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location === item.url}>
+                  <SidebarMenuButton asChild isActive={location === item.url} className="py-3">
                     <Link href={item.url} data-testid={`link-${item.title.toLowerCase()}`}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <item.icon className="h-5 w-5" />
+                      <span className="text-base">{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -77,19 +77,19 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <Separator className="my-4" />
+        <Separator className="my-6" />
         <SidebarGroup>
-          <SidebarGroupLabel>Quick Actions</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sm">Quick Actions</SidebarGroupLabel>
           <SidebarGroupContent>
-            <Button className="w-full justify-start gap-2" data-testid="button-create-model">
-              <Plus className="h-4 w-4" />
+            <Button className="w-full justify-start gap-2 py-6 text-base rounded-xl" data-testid="button-create-model">
+              <Plus className="h-5 w-5" />
               Create New Model
             </Button>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
-        <div className="text-xs text-muted-foreground">
+      <SidebarFooter className="p-6">
+        <div className="text-sm text-muted-foreground">
           © 2024 AI Platform
         </div>
       </SidebarFooter>
