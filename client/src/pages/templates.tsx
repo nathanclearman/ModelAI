@@ -20,7 +20,6 @@ export default function Templates() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-accent/20 via-transparent to-transparent opacity-40"></div>
         <div className="relative">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 text-accent-foreground text-sm font-medium mb-6">
-            <Sparkles className="h-4 w-4" />
             <span>Quick Start</span>
           </div>
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4">AI Model Templates</h1>

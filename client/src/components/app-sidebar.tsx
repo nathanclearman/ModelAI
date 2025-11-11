@@ -50,8 +50,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background">
-            <Sparkles className="h-6 w-6" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-xl">
+            AI
           </div>
           <div className="flex flex-col">
             <span className="text-base font-semibold">AI Platform</span>

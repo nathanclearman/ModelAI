@@ -68,7 +68,6 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent opacity-40"></div>
         <div className="relative">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-            <Sparkles className="h-4 w-4" />
             <span>Welcome back!</span>
           </div>
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4">Dashboard</h1>
