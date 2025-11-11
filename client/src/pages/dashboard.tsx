@@ -64,11 +64,18 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-16">
-      <div className="py-12">
-        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Dashboard</h1>
-        <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-          Manage your AI models and monitor their performance
-        </p>
+      <div className="relative py-16 px-8 -mx-8 rounded-3xl bg-gradient-to-br from-primary/10 via-accent/5 to-background overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent opacity-40"></div>
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
+            <Sparkles className="h-4 w-4" />
+            <span>Welcome back!</span>
+          </div>
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4">Dashboard</h1>
+          <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
+            Manage your AI models and monitor their performance
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
