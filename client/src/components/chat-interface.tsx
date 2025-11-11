@@ -81,14 +81,14 @@ export function ChatInterface({ modelName = "AI Assistant", onSendMessage, initi
                 </Avatar>
               )}
               <div
-                className={`max-w-[70%] rounded-2xl px-4 py-3 ${
+                className={`max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all duration-200 hover:shadow-md ${
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-br-sm"
-                    : "bg-muted rounded-bl-sm"
+                    ? "bg-primary text-primary-foreground rounded-br-md"
+                    : "bg-muted rounded-bl-md"
                 }`}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                <p className="text-xs opacity-70 mt-1">
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                <p className="text-xs opacity-60 mt-1.5">
                   {new Date(message.timestamp).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -111,11 +111,11 @@ export function ChatInterface({ modelName = "AI Assistant", onSendMessage, initi
                   <Bot className="h-4 w-4" />
                 </AvatarFallback>
               </Avatar>
-              <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <div className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <div className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
+                <div className="flex gap-1.5">
+                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
             </div>
