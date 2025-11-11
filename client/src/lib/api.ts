@@ -62,7 +62,19 @@ export async function* streamChat(
     body: JSON.stringify({ modelId, message, conversationId }),
   });
 
-  if (!response.ok) throw new Error("Failed to start chat");
+  if (!response.ok) {
+    let errorMessage = "Failed to start chat";
+    try {
+      const errorData = await response.json();
+      if (errorData.error) {
+        errorMessage = errorData.error;
+      }
+    } catch {
+      // If parsing fails, use default error message
+    }
+    throw new Error(errorMessage);
+  }
+  
   if (!response.body) throw new Error("No response body");
 
   const reader = response.body.getReader();

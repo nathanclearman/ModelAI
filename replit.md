@@ -25,7 +25,9 @@ Preferred communication style: Simple, everyday language.
 - ✅ Model configuration management with custom prompts and parameters
 - ✅ Conversation export feature (individual and bulk export to JSONL format)
 - ✅ Fine-tuned model import with OpenAI model ID validation
-- ✅ Switched to user's OpenAI API key for fine-tuned model support
+- ✅ Per-user OpenAI API key support (stored in browser session)
+- ✅ Settings page for API key configuration with validation
+- ✅ Visual guidance for users without API keys
 - ✅ End-to-end tested and verified working
 
 ## System Architecture
@@ -58,11 +60,11 @@ Preferred communication style: Simple, everyday language.
 
 **Key Pages:**
 - Dashboard - Overview with stats and quick access to models and conversations
-- Chat - Real-time streaming chat interface with AI models
-- Upload Model - Interface for importing custom pre-trained models
+- Chat - Real-time streaming chat interface with AI models, API key warning for fine-tuned models
+- Import AI Models - Interface for importing fine-tuned models and uploaded pre-trained models
 - Templates - Gallery of pre-configured AI assistant templates
 - History - Conversation browsing, management, and export (individual or bulk)
-- Settings - Account and application preferences
+- Settings - Account preferences and OpenAI API key configuration
 
 ### Backend Architecture
 
@@ -157,5 +159,13 @@ Preferred communication style: Simple, everyday language.
 
 **Environment Variables Required:**
 - `DATABASE_URL` - PostgreSQL connection string
-- `OPENAI_API_KEY` - User's OpenAI API key for accessing OpenAI services
+- `OPENAI_API_KEY` - (Optional) Fallback OpenAI API key when users haven't configured their own
 - `NODE_ENV` - Environment mode (development/production)
+
+**User API Key Management:**
+- Users can configure their own OpenAI API keys in Settings
+- API keys are stored in browser sessionStorage (cleared on browser close)
+- Keys are sent via `x-openai-api-key` header with each chat request
+- Backend creates per-request OpenAI clients with user's key
+- Fallback to environment `OPENAI_API_KEY` if no user key provided
+- Required for accessing fine-tuned models (tied to user's OpenAI account)
