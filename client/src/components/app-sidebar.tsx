@@ -54,8 +54,8 @@ export function AppSidebar() {
             AI
           </div>
           <div className="flex flex-col">
-            <span className="text-base font-semibold">AI Platform</span>
-            <span className="text-sm text-muted-foreground">Business Edition</span>
+            <span className="text-base font-semibold">ModelAI</span>
+            <span className="text-sm text-muted-foreground"> </span>
           </div>
         </div>
       </SidebarHeader>
@@ -94,7 +94,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-6">
         <div className="text-sm text-muted-foreground">
-          © 2024 AI Platform
+          © 2025 ModelAI. All rights reserved.
         </div>
       </SidebarFooter>
     </Sidebar>

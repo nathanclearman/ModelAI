@@ -72,7 +72,7 @@ export default function Dashboard() {
           </div>
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4">Dashboard</h1>
           <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-            Manage your AI models and monitor their performance
+            Manage models and monitor their performance
           </p>
         </div>
       </div>
@@ -102,7 +102,7 @@ export default function Dashboard() {
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <CardTitle>Recent Conversations</CardTitle>
-            <CardDescription>Your latest AI interactions</CardDescription>
+            <CardDescription> </CardDescription>
           </div>
           <Link href="/history">
             <Button variant="outline" size="sm" data-testid="button-view-all">
@@ -168,7 +168,7 @@ export default function Dashboard() {
             <div>
               <h3 className="text-3xl font-semibold mb-4 tracking-tight">Create Your Custom Model</h3>
               <p className="text-lg text-muted-foreground max-w-2xl leading-relaxed">
-                Build a custom AI assistant tailored to your specific business needs with advanced configuration options
+                Build a custom AI assistant tailored to your needs
               </p>
             </div>
             <Button
