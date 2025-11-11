@@ -2,174 +2,205 @@
 
 ## Design Approach
 
-**Selected Approach:** Apple-Inspired Minimalism
+**Selected Approach:** Warm Minimalism with Creative Energy
 
-**Rationale:** Creating a premium, sleek platform that feels sophisticated and effortless. Drawing inspiration from Apple's website design philosophy: generous white space, refined typography, subtle animations, and a focus on content over chrome.
+**Rationale:** Inspired by Notion's approachable warmth, Linear's polished refinement, and Figma's creative confidence. Creating a platform that feels like a thoughtfully crafted creative tool—professional yet inviting, cutting-edge yet human.
 
 **Core Principles:**
-- Extreme simplicity and clarity
-- Generous white space and breathing room
-- Large, bold typography with refined hierarchy
-- Subtle, smooth animations and transitions
-- Premium feel through restraint
-- Content-first approach
+- Warmth over sterility: Soft, organic shapes with personality
+- Progressive disclosure: Information reveals naturally through interaction
+- Delightful details: Micro-interactions that spark joy
+- Spatial rhythm: Dynamic layouts that breathe and flow
+- Human-first: Make AI feel approachable, not intimidating
 
 ## Typography System
 
 **Font Stack:**
-- Primary: SF Pro Display style (Inter) - Clean, modern, highly legible
-- Monospace: SF Mono style (JetBrains Mono) - for technical content
+- Primary: Inter (warm, approachable, highly readable)
+- Accent Headings: Spline Sans (rounded, friendly geometry)
+- Monospace: JetBrains Mono (technical content)
 
-**Hierarchy (Apple-inspired scale):**
-- Hero Titles: text-5xl md:text-6xl lg:text-7xl font-semibold tracking-tight
+**Hierarchy:**
+- Hero Titles: text-5xl md:text-6xl font-bold tracking-tight (Spline Sans)
 - Page Titles: text-4xl md:text-5xl font-semibold tracking-tight
-- Section Headers: text-2xl md:text-3xl font-semibold tracking-tight
+- Section Headers: text-2xl md:text-3xl font-semibold
 - Card Titles: text-xl font-semibold
-- Body Text: text-lg font-normal leading-relaxed
-- Labels: text-base font-medium
-- Helper Text: text-sm text-muted-foreground
+- Body Text: text-base leading-relaxed
+- Labels: text-sm font-medium
+- Helper Text: text-sm opacity-70
 
 **Typography Principles:**
-- Use larger sizes than typical - Apple goes big
-- Tight letter spacing (tracking-tight) for headlines
-- Generous line height (leading-relaxed) for readability
+- Mix rounded accent fonts for headers with clean body text
+- Generous line height for breathing room
+- Tight tracking on large display text
 
 ## Layout System
 
-**Spacing Primitives (Generous Apple-style):**
-- Hero sections: py-20 md:py-32 lg:py-40
-- Page padding: px-6 md:px-12 lg:px-16
-- Component padding: p-8 md:p-12
-- Section spacing: gap-12 md:gap-16 lg:gap-24
-- Card spacing: gap-6 md:gap-8
-- Tight groupings: gap-4
+**Spacing Primitives:**
+Core units: 4, 6, 8, 12, 16, 24 (as in p-4, gap-6, py-8, space-y-12)
 
 **Container Structure:**
-- Maximum content width: max-w-7xl
-- Generous margins and padding everywhere
-- Floating panels with backdrop blur
-- Clean, spacious sidebar (w-72) with subtle dividers
-- Full-bleed sections where appropriate
+- Max content width: max-w-7xl
+- Page padding: px-6 md:px-8 lg:px-12
+- Section spacing: space-y-16 md:space-y-24
+- Card grids: gap-6 md:gap-8
+- Component padding: p-6 md:p-8
+
+**Layout Philosophy:**
+- Asymmetric layouts for visual interest
+- Varied content densities create rhythm
+- Generous whitespace balanced with rich content zones
+- Floating panels with soft shadows, not stark borders
 
 ## Component Library
 
 ### Navigation
-**Sidebar (Primary Navigation):**
-- Fixed left sidebar (w-64) with vertical nav links
-- Icons from Heroicons (outline style) paired with labels
-- Active state: slightly different background treatment
-- Sections: Models, Templates, History, Settings
+
+**Sidebar:**
+- Width: w-64, soft rounded corners (rounded-r-2xl)
+- Vertical nav with icons (Heroicons) + labels
+- Active states: filled background with gentle color
+- Grouped sections: Models, Templates, History, Settings
+- User profile at bottom with avatar and quick settings
 
 **Top Bar:**
-- Breadcrumb navigation for context
-- User profile/actions on the right
-- Height: h-16 with px-6 padding
+- Height: h-16, subtle border-b
+- Breadcrumbs on left, search + actions on right
+- Search bar: rounded-full with icon, expands on focus
 
 ### Core UI Elements
 
-**Cards/Panels:**
-- Rounded corners: rounded-lg
-- Consistent padding: p-6
-- Subtle border treatment
-- Used for: model configurations, chat containers, comparison views
+**Cards:**
+- Rounded: rounded-2xl (softer than standard)
+- Padding: p-6 md:p-8
+- Subtle shadow elevation, hover lift effect
+- Used everywhere: model configs, chat containers, templates
 
 **Buttons:**
-- Primary: px-4 py-2 rounded-md font-medium
-- Secondary: Similar sizing with border treatment
-- Icon buttons: p-2 rounded-md with just icon
-- CTA buttons over images: backdrop-blur-md bg-white/10 border border-white/20
+- Primary: px-6 py-3 rounded-xl font-medium (warm accent color)
+- Secondary: same sizing with border, transparent background
+- Icon buttons: p-2.5 rounded-lg
+- CTA on images: backdrop-blur-md bg-white/10 border border-white/20 rounded-xl
 
 **Form Inputs:**
-- Text inputs: h-10 px-3 rounded-md border
-- Textareas: p-3 rounded-md border (min-h-32 for chat input)
-- Select dropdowns: h-10 px-3 rounded-md border
+- Text inputs: h-11 px-4 rounded-lg border
+- Textareas: p-4 rounded-xl (min-h-32 for chat)
+- Select dropdowns: h-11 px-4 rounded-lg
+- Sliders: custom styled with warm accent fill
 - Labels: text-sm font-medium mb-2 block
-- Consistent focus states across all inputs
+- Focus states: ring-2 with warm accent color
 
 **Chat Interface:**
-- Messages alternate alignment (user: right-aligned, AI: left-aligned)
-- Message bubbles: max-w-3xl rounded-2xl p-4
-- User messages: rounded-br-sm (sharp bottom-right corner)
-- AI messages: rounded-bl-sm (sharp bottom-left corner)
-- Timestamp: text-xs opacity-70 below messages
+- Messages: max-w-2xl with alternating alignment
+- User bubbles: rounded-2xl rounded-br-md, right-aligned
+- AI bubbles: rounded-2xl rounded-bl-md, left-aligned
+- Message padding: p-4 md:p-5
+- Typing indicator: animated dots with warm color
+- Timestamps: text-xs opacity-60
 
-### Data Display Components
+### Data Display
 
 **Model Configuration Panel:**
-- Two-column layout (lg:grid-cols-2) for configuration options
-- Slider controls for temperature, max tokens
-- Dropdown for model selection (GPT-4o, Claude Sonnet, etc.)
-- Real-time preview of settings
-- Save/Reset buttons at bottom
+- Grid layout: lg:grid-cols-2 gap-8
+- Sections grouped with subtle background cards
+- Sliders with value preview bubbles
+- Dropdown model selector with visual icons
+- Preset buttons: quick-select common configurations
+- Save button: prominent with success feedback animation
 
 **Comparison View:**
-- Split screen layout (grid-cols-2 on desktop)
-- Side-by-side model responses
-- Synchronized scrolling
-- Visual separator (border-r)
-- Headers showing model names and configurations
+- Split layout: grid-cols-1 lg:grid-cols-2 gap-6
+- Model cards elevated with soft shadows
+- Response areas: scrollable with synchronized scroll option
+- Visual separator with gradient fade
+- Metrics footer: tokens, time, cost side-by-side
 
-**Template Cards:**
-- Grid layout: grid-cols-1 md:grid-cols-2 lg:grid-cols-3
-- Card structure: Icon at top, title, description, "Use Template" button
-- Templates: Customer Support Bot, Content Generator, Code Assistant, Data Analyst, Sales Assistant, HR Assistant
+**Template Gallery:**
+- Grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6
+- Cards: illustration icon top, title, description, CTA
+- Hover: lift effect with glow
+- Templates: Customer Support, Content Generator, Code Assistant, Data Analyst, Creative Writer, Research Assistant, Sales Bot, HR Helper
 
-**Conversation History:**
-- List view with: title, timestamp, model used, snippet preview
-- Search/filter bar at top
-- Click to load conversation
-- Export button for each conversation
-- Delete/archive actions
+**History List:**
+- Timeline-style layout with connecting lines
+- Each item: title, timestamp, model badge, preview snippet
+- Search/filter bar with tag chips
+- Batch actions: export, archive, delete
+- Infinite scroll with skeleton loading
 
 ### Overlays
 
-**Modal Dialogs:**
-- Centered overlay with backdrop (bg-black/50)
-- Content container: max-w-2xl rounded-lg p-6
-- Header with close button
-- Used for: creating new models, editing configurations, export options
+**Modals:**
+- Centered: max-w-2xl rounded-2xl
+- Backdrop: bg-black/40 backdrop-blur-sm
+- Padding: p-8, header with close button
+- Slide-in animation from bottom
+- Used for: new model creation, advanced settings
 
 **Toast Notifications:**
-- Bottom-right positioning (fixed bottom-4 right-4)
-- Temporary appearance (auto-dismiss after 3s)
-- Success, error, info variants
+- Position: fixed bottom-6 right-6
+- Rounded: rounded-xl with icon + message
+- Auto-dismiss: 4s with progress bar
+- Success/error/info variants with warm color coding
 
 ## Page Layouts
 
 ### Dashboard Home
-- Welcome header with quick stats (models created, conversations, API usage)
-- Recent conversations (4-6 items)
-- Template suggestions below
-- "Create New Model" prominent CTA
+- Hero section: Welcome message with user name, gradient background treatment (not image)
+- Stats cards: 3-column grid (models, conversations, tokens used) with icons
+- Recent activity timeline below
+- Template suggestions: 6-card grid
+- Floating "New Model" FAB (bottom-right)
 
 ### Model Chat Interface
-- Full-height layout with fixed chat input at bottom
-- Message history: scrollable middle section
-- Model selector and config shortcut in top-right
-- Chat input: sticky bottom bar with textarea and send button
+- Full-height: chat history scrollable center
+- Sticky input: bottom bar with rounded-2xl textarea, send button
+- Model switcher: top-right dropdown with config preview
+- Suggested prompts: pill buttons above input when empty
+- Smooth message append animations
 
 ### Configuration Dashboard
-- Left: Model list (scrollable sidebar within main content)
-- Right: Selected model's configuration panel
-- Top: Model name and status indicator
-- Tabs for: Settings, Prompts, Performance Analytics
+- Two-column: model list sidebar (w-80) + config panel
+- Model cards: preview of settings, status badge
+- Config panel: tabbed interface (Settings, Prompts, Analytics)
+- Live preview window showing sample output
+- Version history timeline
 
 ### Comparison View
-- Top controls: Select models to compare, input prompt
-- Main area: Two-column response display
-- Bottom: Detailed metrics comparison (tokens used, response time, cost)
-
-## Accessibility
-- All interactive elements have clear focus states (ring-2 ring-offset-2)
-- Sufficient contrast ratios for text
-- Keyboard navigation throughout
-- ARIA labels for icon-only buttons
-- Form inputs have associated labels
-- Error states clearly communicated
+- Top controls: model selectors (2-4 models), shared prompt input
+- Response grid: even columns with headers
+- Expandable metrics drawer at bottom
+- Export comparison button: PDF/CSV options
+- Side-by-side scrolling with sync toggle
 
 ## Images
 
-This application does not require hero images or decorative photography. Focus on:
-- Icon library: Heroicons for all UI icons
-- Empty states: Simple illustrations or icon-based graphics when no data exists
-- Profile avatars: Circular, 40px diameter for user/AI representations in chat
+**Hero Sections:**
+- Dashboard welcome area: abstract gradient mesh background (generative art style, warm tones)
+- Marketing pages (if added): AI-themed abstract illustrations, neural network visualizations
+
+**Throughout App:**
+- Empty states: friendly illustrations (abstract shapes, not literal)
+- Template cards: unique icon illustrations for each category
+- Profile avatars: 48px circular for users, 40px for AI in chat
+- Model icons: distinctive badge designs per model type
+
+## Micro-Interactions
+
+- Button press: subtle scale down (scale-95) on active
+- Card hover: lift shadow with 200ms transition
+- Input focus: gentle grow effect
+- Message send: slide-up animation with fade-in
+- Model switch: crossfade transition (300ms)
+- Success actions: confetti or checkmark animation
+- Loading states: skeleton screens with shimmer effect
+- Scroll reveals: subtle fade-in for cards entering viewport
+
+## Accessibility
+
+- Focus states: ring-2 ring-offset-2 with warm accent
+- Color contrast: WCAG AA minimum for all text
+- Keyboard navigation: full app traversal
+- Screen reader: ARIA labels on all icon buttons
+- Form validation: inline errors with icons
+- Reduced motion: respect prefers-reduced-motion
