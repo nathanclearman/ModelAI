@@ -28,6 +28,13 @@ Preferred communication style: Simple, everyday language.
 - ✅ Per-user OpenAI API key support (stored in browser session)
 - ✅ Settings page for API key configuration with validation
 - ✅ Visual guidance for users without API keys
+- ✅ Design transformation to "Warm Minimalism with Creative Energy"
+  - Warm color palette with coral primary (#FF6B4A), soft beige sidebar, warm backgrounds
+  - Rounder component shapes (buttons: rounded-xl, badges: rounded-full, inputs/cards: rounded-lg/2xl)
+  - Gradient hero sections on Dashboard and Templates pages
+  - Enhanced chat interface with organic bubble shapes and subtle shadows
+  - Improved spacing and breathing room throughout the application
+  - Delightful micro-interactions and smooth transitions
 - ✅ End-to-end tested and verified working
 
 ## System Architecture
@@ -44,13 +51,16 @@ Preferred communication style: Simple, everyday language.
 - Shadcn/ui component library based on Radix UI primitives
 - Tailwind CSS for styling with a custom design system
 - Theme provider supporting light/dark modes
-- Apple-inspired minimalist design philosophy with generous whitespace, refined typography, and subtle animations
+- Warm Minimalism design philosophy inspired by Notion, Linear, and Figma with generous whitespace, refined typography, and delightful animations
 
 **Design Tokens:**
 - CSS custom properties for theming (HSL color system)
-- Neutral color palette with semantic color roles (primary, secondary, accent, destructive)
-- Custom border radius values (9px, 6px, 3px)
-- Geist font family for clean, modern typography
+- Warm color palette with coral primary (#FF6B4A / 25 95% 53%), soft beige sidebar, warm neutral backgrounds
+- Semantic color roles: primary (coral), secondary (warm gray), accent (amber), destructive (red)
+- Organic border radius values - buttons (rounded-xl), badges (rounded-full), inputs (rounded-lg), cards (rounded-2xl)
+- Geist font family for clean, modern typography with relaxed line-height for better readability
+- Subtle shadows and smooth transitions for depth and interactivity
+- Gradient overlays on hero sections for welcoming, warm atmosphere
 
 **State Management:**
 - React Query for server-side data fetching, caching, and synchronization
