@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { neonConfig, Pool } from "@neondatabase/serverless";
 import ws from "ws";
@@ -7,7 +7,7 @@ import {
   aiModels,
   conversations,
   type User,
-  type InsertUser,
+  type UpsertUser,
   type AIModel,
   type InsertAIModel,
   type Conversation,
@@ -20,107 +20,131 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);
 
 export interface IStorage {
-  // User methods
+  // User methods (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  upsertUser(user: UpsertUser): Promise<User>;
   
-  // AI Model methods
-  createAIModel(model: InsertAIModel): Promise<AIModel>;
-  getAIModel(id: string): Promise<AIModel | undefined>;
-  getAllAIModels(): Promise<AIModel[]>;
-  updateAIModel(id: string, model: Partial<InsertAIModel>): Promise<AIModel | undefined>;
-  deleteAIModel(id: string): Promise<boolean>;
+  // AI Model methods (all scoped to userId)
+  createAIModel(userId: string, model: InsertAIModel): Promise<AIModel>;
+  getAIModel(userId: string, id: string): Promise<AIModel | undefined>;
+  getAllAIModels(userId: string): Promise<AIModel[]>;
+  updateAIModel(userId: string, id: string, model: Partial<InsertAIModel>): Promise<AIModel | undefined>;
+  deleteAIModel(userId: string, id: string): Promise<boolean>;
   
-  // Conversation methods
-  createConversation(conversation: InsertConversation): Promise<Conversation>;
-  getConversation(id: string): Promise<Conversation | undefined>;
-  getAllConversations(): Promise<Conversation[]>;
-  getConversationsByModel(modelId: string): Promise<Conversation[]>;
-  updateConversation(id: string, conversation: Partial<InsertConversation>): Promise<Conversation | undefined>;
-  deleteConversation(id: string): Promise<boolean>;
+  // Conversation methods (all scoped to userId)
+  createConversation(userId: string, conversation: InsertConversation): Promise<Conversation>;
+  getConversation(userId: string, id: string): Promise<Conversation | undefined>;
+  getAllConversations(userId: string): Promise<Conversation[]>;
+  getConversationsByModel(userId: string, modelId: string): Promise<Conversation[]>;
+  updateConversation(userId: string, id: string, conversation: Partial<InsertConversation>): Promise<Conversation | undefined>;
+  deleteConversation(userId: string, id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // User methods
+  // User methods (required for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id));
     return result[0];
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.username, username));
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  // AI Model methods (all scoped to userId)
+  async createAIModel(userId: string, model: InsertAIModel): Promise<AIModel> {
+    const result = await db.insert(aiModels).values({ ...model, userId }).returning();
     return result[0];
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const result = await db.insert(users).values(insertUser).returning();
+  async getAIModel(userId: string, id: string): Promise<AIModel | undefined> {
+    const result = await db
+      .select()
+      .from(aiModels)
+      .where(and(eq(aiModels.id, id), eq(aiModels.userId, userId)));
     return result[0];
   }
 
-  // AI Model methods
-  async createAIModel(model: InsertAIModel): Promise<AIModel> {
-    const result = await db.insert(aiModels).values(model).returning();
-    return result[0];
+  async getAllAIModels(userId: string): Promise<AIModel[]> {
+    return await db
+      .select()
+      .from(aiModels)
+      .where(eq(aiModels.userId, userId))
+      .orderBy(desc(aiModels.createdAt));
   }
 
-  async getAIModel(id: string): Promise<AIModel | undefined> {
-    const result = await db.select().from(aiModels).where(eq(aiModels.id, id));
-    return result[0];
-  }
-
-  async getAllAIModels(): Promise<AIModel[]> {
-    return await db.select().from(aiModels).orderBy(desc(aiModels.createdAt));
-  }
-
-  async updateAIModel(id: string, model: Partial<InsertAIModel>): Promise<AIModel | undefined> {
+  async updateAIModel(userId: string, id: string, model: Partial<InsertAIModel>): Promise<AIModel | undefined> {
     const result = await db
       .update(aiModels)
       .set(model)
-      .where(eq(aiModels.id, id))
+      .where(and(eq(aiModels.id, id), eq(aiModels.userId, userId)))
       .returning();
     return result[0];
   }
 
-  async deleteAIModel(id: string): Promise<boolean> {
-    const result = await db.delete(aiModels).where(eq(aiModels.id, id)).returning();
+  async deleteAIModel(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(aiModels)
+      .where(and(eq(aiModels.id, id), eq(aiModels.userId, userId)))
+      .returning();
     return result.length > 0;
   }
 
-  // Conversation methods
-  async createConversation(conversation: InsertConversation): Promise<Conversation> {
-    const result = await db.insert(conversations).values(conversation).returning();
+  // Conversation methods (all scoped to userId)
+  async createConversation(userId: string, conversation: InsertConversation): Promise<Conversation> {
+    const result = await db.insert(conversations).values({ ...conversation, userId }).returning();
     return result[0];
   }
 
-  async getConversation(id: string): Promise<Conversation | undefined> {
-    const result = await db.select().from(conversations).where(eq(conversations.id, id));
+  async getConversation(userId: string, id: string): Promise<Conversation | undefined> {
+    const result = await db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
     return result[0];
   }
 
-  async getAllConversations(): Promise<Conversation[]> {
-    return await db.select().from(conversations).orderBy(desc(conversations.updatedAt));
-  }
-
-  async getConversationsByModel(modelId: string): Promise<Conversation[]> {
+  async getAllConversations(userId: string): Promise<Conversation[]> {
     return await db
       .select()
       .from(conversations)
-      .where(eq(conversations.modelId, modelId))
+      .where(eq(conversations.userId, userId))
       .orderBy(desc(conversations.updatedAt));
   }
 
-  async updateConversation(id: string, conversation: Partial<InsertConversation>): Promise<Conversation | undefined> {
+  async getConversationsByModel(userId: string, modelId: string): Promise<Conversation[]> {
+    return await db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.modelId, modelId), eq(conversations.userId, userId)))
+      .orderBy(desc(conversations.updatedAt));
+  }
+
+  async updateConversation(userId: string, id: string, conversation: Partial<InsertConversation>): Promise<Conversation | undefined> {
     const result = await db
       .update(conversations)
       .set({ ...conversation, updatedAt: new Date() })
-      .where(eq(conversations.id, id))
+      .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
       .returning();
     return result[0];
   }
 
-  async deleteConversation(id: string): Promise<boolean> {
-    const result = await db.delete(conversations).where(eq(conversations.id, id)).returning();
+  async deleteConversation(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(conversations)
+      .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
+      .returning();
     return result.length > 0;
   }
 }

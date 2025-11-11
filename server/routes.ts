@@ -3,19 +3,28 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertAIModelSchema, insertConversationSchema, type Message } from "@shared/schema";
 import OpenAI from "openai";
-
-// Using OpenAI's API with user's API key (supports fine-tuned models)
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { isAuthenticated } from "./replitAuth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // AI Model Routes
-  
-  // Get all AI models
-  app.get("/api/models", async (req, res) => {
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const models = await storage.getAllAIModels();
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // AI Model Routes (all protected)
+  
+  // Get all AI models for the authenticated user
+  app.get("/api/models", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const models = await storage.getAllAIModels(userId);
       res.json(models);
     } catch (error) {
       console.error("Error fetching models:", error);
@@ -24,9 +33,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single AI model
-  app.get("/api/models/:id", async (req, res) => {
+  app.get("/api/models/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const model = await storage.getAIModel(req.params.id);
+      const userId = req.user.claims.sub;
+      const model = await storage.getAIModel(userId, req.params.id);
       if (!model) {
         return res.status(404).json({ error: "Model not found" });
       }
@@ -38,10 +48,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new AI model
-  app.post("/api/models", async (req, res) => {
+  app.post("/api/models", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertAIModelSchema.parse(req.body);
-      const model = await storage.createAIModel(validatedData);
+      const model = await storage.createAIModel(userId, validatedData);
       res.status(201).json(model);
     } catch (error: any) {
       console.error("Error creating model:", error);
@@ -53,9 +64,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update AI model
-  app.patch("/api/models/:id", async (req, res) => {
+  app.patch("/api/models/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const model = await storage.updateAIModel(req.params.id, req.body);
+      const userId = req.user.claims.sub;
+      const model = await storage.updateAIModel(userId, req.params.id, req.body);
       if (!model) {
         return res.status(404).json({ error: "Model not found" });
       }
@@ -67,9 +79,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete AI model
-  app.delete("/api/models/:id", async (req, res) => {
+  app.delete("/api/models/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const success = await storage.deleteAIModel(req.params.id);
+      const userId = req.user.claims.sub;
+      const success = await storage.deleteAIModel(userId, req.params.id);
       if (!success) {
         return res.status(404).json({ error: "Model not found" });
       }
@@ -80,12 +93,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Conversation Routes
+  // Conversation Routes (all protected)
   
-  // Get all conversations
-  app.get("/api/conversations", async (req, res) => {
+  // Get all conversations for the authenticated user
+  app.get("/api/conversations", isAuthenticated, async (req: any, res) => {
     try {
-      const conversations = await storage.getAllConversations();
+      const userId = req.user.claims.sub;
+      const conversations = await storage.getAllConversations(userId);
       res.json(conversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -94,9 +108,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single conversation
-  app.get("/api/conversations/:id", async (req, res) => {
+  app.get("/api/conversations/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const conversation = await storage.getConversation(req.params.id);
+      const userId = req.user.claims.sub;
+      const conversation = await storage.getConversation(userId, req.params.id);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
       }
@@ -108,10 +123,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new conversation
-  app.post("/api/conversations", async (req, res) => {
+  app.post("/api/conversations", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertConversationSchema.parse(req.body);
-      const conversation = await storage.createConversation(validatedData);
+      const conversation = await storage.createConversation(userId, validatedData);
       res.status(201).json(conversation);
     } catch (error: any) {
       console.error("Error creating conversation:", error);
@@ -123,9 +139,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update conversation (add messages)
-  app.patch("/api/conversations/:id", async (req, res) => {
+  app.patch("/api/conversations/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const conversation = await storage.updateConversation(req.params.id, req.body);
+      const userId = req.user.claims.sub;
+      const conversation = await storage.updateConversation(userId, req.params.id, req.body);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
       }
@@ -137,9 +154,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete conversation
-  app.delete("/api/conversations/:id", async (req, res) => {
+  app.delete("/api/conversations/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const success = await storage.deleteConversation(req.params.id);
+      const userId = req.user.claims.sub;
+      const success = await storage.deleteConversation(userId, req.params.id);
       if (!success) {
         return res.status(404).json({ error: "Conversation not found" });
       }
@@ -150,9 +168,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Chat endpoint with streaming
-  app.post("/api/chat", async (req, res) => {
+  // Chat endpoint with streaming (protected)
+  app.post("/api/chat", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { modelId, message, conversationId } = req.body;
 
       if (!modelId || !message) {
@@ -174,15 +193,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         apiKey: apiKeyToUse,
       });
 
-      // Get the AI model configuration
-      const model = await storage.getAIModel(modelId);
+      // Get the AI model configuration (scoped to user)
+      const model = await storage.getAIModel(userId, modelId);
       if (!model) {
         return res.status(404).json({ error: "Model not found" });
       }
 
-      // Get existing conversation or prepare for new one
+      // Get existing conversation or prepare for new one (scoped to user)
       let conversation = conversationId
-        ? await storage.getConversation(conversationId)
+        ? await storage.getConversation(userId, conversationId)
         : null;
 
       const messages = conversation?.messages as Message[] || [];
@@ -239,16 +258,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       messages.push(assistantMessage);
 
-      // Save or update conversation
+      // Save or update conversation (scoped to user)
       let savedConversation;
       if (conversation) {
-        savedConversation = await storage.updateConversation(conversation.id, {
+        savedConversation = await storage.updateConversation(userId, conversation.id, {
           messages: messages as any,
         });
       } else {
         // Create new conversation with a generated title
         const title = message.slice(0, 50) + (message.length > 50 ? "..." : "");
-        savedConversation = await storage.createConversation({
+        savedConversation = await storage.createConversation(userId, {
           modelId: model.id,
           title,
           messages: messages as any,
