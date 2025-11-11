@@ -159,6 +159,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Model ID and message are required" });
       }
 
+      // Get API key from header or use environment variable as fallback
+      const userApiKey = req.headers['x-openai-api-key'] as string;
+      const apiKeyToUse = userApiKey || process.env.OPENAI_API_KEY;
+
+      if (!apiKeyToUse) {
+        return res.status(400).json({ 
+          error: "OpenAI API key is required. Please configure your API key in Settings." 
+        });
+      }
+
+      // Create OpenAI client with user's API key or fallback to environment
+      const openaiClient = new OpenAI({
+        apiKey: apiKeyToUse,
+      });
+
       // Get the AI model configuration
       const model = await storage.getAIModel(modelId);
       if (!model) {
@@ -198,7 +213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Connection", "keep-alive");
 
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-      const stream = await openai.chat.completions.create({
+      const stream = await openaiClient.chat.completions.create({
         model: model.model,
         messages: openaiMessages,
         temperature: model.temperature / 100,
