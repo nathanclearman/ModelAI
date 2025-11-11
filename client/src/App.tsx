@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Dashboard from "@/pages/dashboard";
+import UploadModel from "@/pages/upload-model";
 import Templates from "@/pages/templates";
 import History from "@/pages/history";
 import Settings from "@/pages/settings";
@@ -17,6 +18,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/upload" component={UploadModel} />
       <Route path="/templates" component={Templates} />
       <Route path="/history" component={History} />
       <Route path="/settings" component={Settings} />

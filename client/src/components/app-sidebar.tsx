@@ -1,4 +1,4 @@
-import { Home, Sparkles, History, Settings, Plus } from "lucide-react";
+import { Home, Sparkles, History, Settings, Plus, Upload } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -20,6 +20,11 @@ const menuItems = [
     title: "Dashboard",
     url: "/",
     icon: Home,
+  },
+  {
+    title: "Upload Model",
+    url: "/upload",
+    icon: Upload,
   },
   {
     title: "Templates",
