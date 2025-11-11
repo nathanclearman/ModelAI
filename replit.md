@@ -35,6 +35,15 @@ Preferred communication style: Simple, everyday language.
   - Enhanced chat interface with organic bubble shapes and subtle shadows
   - Improved spacing and breathing room throughout the application
   - Delightful micro-interactions and smooth transitions
+- ✅ **Replit Auth Integration** - Complete authentication system with Google, GitHub, and email/password login
+  - Session-based authentication using Replit Auth (OpenID Connect)
+  - PostgreSQL session storage for persistent login across restarts
+  - All API routes protected with authentication middleware
+  - Per-user data isolation - all AI models and conversations scoped to userId
+  - Landing page for unauthenticated users with sign-in capability
+  - User profile data (email, firstName, lastName, profileImageUrl) from auth providers
+  - Secure session management with automatic token refresh
+  - setupAuth initialized once at server bootstrap to prevent middleware conflicts
 - ✅ End-to-end tested and verified working
 
 ## System Architecture
@@ -69,12 +78,13 @@ Preferred communication style: Simple, everyday language.
 - Form state managed through React Hook Form with Zod validation
 
 **Key Pages:**
-- Dashboard - Overview with stats and quick access to models and conversations
-- Chat - Real-time streaming chat interface with AI models, API key warning for fine-tuned models
-- Import AI Models - Interface for importing fine-tuned models and uploaded pre-trained models
-- Templates - Gallery of pre-configured AI assistant templates
-- History - Conversation browsing, management, and export (individual or bulk)
-- Settings - Account preferences and OpenAI API key configuration
+- Landing - Public landing page with sign-in for unauthenticated users (displays app features and benefits)
+- Dashboard - Overview with stats and quick access to models and conversations (protected)
+- Chat - Real-time streaming chat interface with AI models, API key warning for fine-tuned models (protected)
+- Import AI Models - Interface for importing fine-tuned models and uploaded pre-trained models (protected)
+- Templates - Gallery of pre-configured AI assistant templates (protected)
+- History - Conversation browsing, management, and export (individual or bulk) (protected)
+- Settings - Account preferences and OpenAI API key configuration (protected)
 
 ### Backend Architecture
 
@@ -91,11 +101,14 @@ Preferred communication style: Simple, everyday language.
 - JSON request/response format with Zod schema validation
 
 **Routing Structure:**
-- `/api/models` - AI model management (GET, POST, PATCH, DELETE)
-- `/api/models/:id` - Single model operations
-- `/api/conversations` - Conversation management
-- `/api/conversations/:id` - Single conversation operations
-- `/api/chat` - Streaming chat endpoint with async generators
+- `/api/auth/user` - Get current authenticated user (protected)
+- `/api/models` - AI model management (GET, POST, PATCH, DELETE) (protected, filtered by userId)
+- `/api/models/:id` - Single model operations (protected, filtered by userId)
+- `/api/conversations` - Conversation management (protected, filtered by userId)
+- `/api/conversations/:id` - Single conversation operations (protected, filtered by userId)
+- `/api/chat` - Streaming chat endpoint with async generators (protected)
+- `/login` - Replit Auth login endpoint (redirects to auth provider)
+- `/auth/callback` - OAuth callback handler for Replit Auth
 
 **Data Validation:**
 - Zod schemas for runtime type validation
@@ -110,9 +123,10 @@ Preferred communication style: Simple, everyday language.
 - Drizzle ORM for type-safe database queries and migrations
 
 **Schema Design:**
-- `users` table - User authentication and profile data
-- `ai_models` table - AI model configurations with system prompts, temperature, max tokens
-- `conversations` table - Chat history stored as JSONB messages array
+- `users` table - User authentication and profile data (id, email, firstName, lastName, profileImageUrl, createdAt, updatedAt)
+- `sessions` table - Session storage for Replit Auth (sid, sess, expire)
+- `ai_models` table - AI model configurations with system prompts, temperature, max tokens, userId foreign key
+- `conversations` table - Chat history stored as JSONB messages array, userId foreign key
 
 **Data Models:**
 - AI Models: Name, description, system prompt, OpenAI model selection, temperature (0-100), max tokens, optional template
@@ -126,15 +140,21 @@ Preferred communication style: Simple, everyday language.
 
 ### Authentication and Authorization
 
-**Current State:**
-- User schema exists with username/password fields
-- No active authentication middleware implemented
-- Routes are currently unprotected (development state)
+**Implementation:**
+- **Replit Auth** - OpenID Connect authentication supporting Google, GitHub, and email/password
+- **Session Management** - PostgreSQL-backed sessions via connect-pg-simple for persistence across restarts
+- **Middleware** - isAuthenticated middleware protects all API routes, extracts userId from session
+- **User Model** - Users table stores profile data (email, firstName, lastName, profileImageUrl) from OAuth providers
+- **Data Isolation** - All AI models and conversations are filtered by userId, ensuring complete data isolation between users
+- **Frontend Auth** - useAuth hook checks authentication status, redirects to landing page if unauthenticated
+- **Bootstrap Sequence** - setupAuth called once at server startup (server/index.ts) to prevent middleware conflicts
 
-**Planned Implementation:**
-- Session-based authentication expected
-- connect-pg-simple package included for PostgreSQL session storage
-- User table with UUID primary keys and unique username constraints
+**Security Features:**
+- All API endpoints protected with authentication middleware
+- Session tokens stored securely in HTTP-only cookies
+- Automatic token refresh for long-lived sessions
+- CSRF protection via session validation
+- User data scoped by userId to prevent unauthorized access
 
 ### External Dependencies
 
