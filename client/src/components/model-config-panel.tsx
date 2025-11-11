@@ -63,21 +63,36 @@ export function ModelConfigPanel({ onSave, initialConfig }: ModelConfigPanelProp
 
         <div className="space-y-2">
           <Label htmlFor="model-select">AI Model</Label>
-          <Select
-            value={config.model}
-            onValueChange={(value) => setConfig({ ...config, model: value })}
-          >
-            <SelectTrigger id="model-select" data-testid="select-model">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {modelOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {config.model.startsWith("ft:") ? (
+            <div className="space-y-2">
+              <Input
+                id="model-select"
+                value={config.model}
+                disabled
+                className="font-mono text-xs bg-muted"
+                data-testid="input-custom-model"
+              />
+              <p className="text-xs text-muted-foreground">
+                Fine-tuned model (custom model ID)
+              </p>
+            </div>
+          ) : (
+            <Select
+              value={config.model}
+              onValueChange={(value) => setConfig({ ...config, model: value })}
+            >
+              <SelectTrigger id="model-select" data-testid="select-model">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {modelOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div className="space-y-2">

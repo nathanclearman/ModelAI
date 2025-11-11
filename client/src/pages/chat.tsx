@@ -199,7 +199,13 @@ export default function Chat() {
                   maxTokens: model.maxTokens,
                   systemPrompt: model.systemPrompt,
                 }
-              : undefined
+              : {
+                  name: "",
+                  model: "gpt-4o",
+                  temperature: 70,
+                  maxTokens: 1000,
+                  systemPrompt: "",
+                }
           }
           onSave={(config) => saveModelMutation.mutate(config)}
         />

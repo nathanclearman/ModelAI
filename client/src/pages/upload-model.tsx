@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModelUploadCard } from "@/components/model-upload-card";
+import { FineTunedImport } from "@/components/fine-tuned-import";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Info, CheckCircle2 } from "lucide-react";
@@ -26,9 +27,9 @@ export default function UploadModel() {
   return (
     <div className="space-y-16">
       <div className="py-12">
-        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Upload Trained Model</h1>
+        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Import AI Models</h1>
         <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-          Import and deploy your custom pre-trained AI models
+          Import OpenAI fine-tuned models or upload your custom pre-trained models
         </p>
       </div>
 
@@ -39,15 +40,22 @@ export default function UploadModel() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="upload" className="space-y-6">
+      <Tabs defaultValue="fine-tuned" className="space-y-6">
         <TabsList>
+          <TabsTrigger value="fine-tuned" data-testid="tab-fine-tuned">
+            Fine-Tuned Models
+          </TabsTrigger>
           <TabsTrigger value="upload" data-testid="tab-upload">
-            Upload New Model
+            Upload Model File
           </TabsTrigger>
           <TabsTrigger value="uploaded" data-testid="tab-uploaded">
-            Uploaded Models ({uploadedModels.length})
+            Imported Models ({uploadedModels.length})
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="fine-tuned" className="space-y-6">
+          <FineTunedImport />
+        </TabsContent>
 
         <TabsContent value="upload" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">

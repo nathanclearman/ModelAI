@@ -22,7 +22,7 @@ export const aiModels = pgTable("ai_models", {
   name: text("name").notNull(),
   description: text("description"),
   systemPrompt: text("system_prompt").notNull(),
-  model: text("model").notNull().default("gpt-4o"),
+  model: text("model").notNull(),
   temperature: integer("temperature").notNull().default(70),
   maxTokens: integer("max_tokens").notNull().default(1000),
   template: text("template"),
@@ -32,6 +32,8 @@ export const aiModels = pgTable("ai_models", {
 export const insertAIModelSchema = createInsertSchema(aiModels).omit({
   id: true,
   createdAt: true,
+}).extend({
+  model: z.string().min(1, "Model is required"),
 });
 
 export type InsertAIModel = z.infer<typeof insertAIModelSchema>;
