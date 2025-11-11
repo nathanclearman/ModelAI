@@ -4,7 +4,12 @@ import { StatsCard } from "@/components/stats-card";
 import { ConversationCard } from "@/components/conversation-card";
 import { TemplateCard } from "@/components/template-card";
 import { Sparkles, MessageSquare, TrendingUp, Plus, Headphones, FileText, Code, BarChart3, Users, Briefcase } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { type AIModel, type Conversation } from "@shared/schema";
+import { deleteConversation } from "@/lib/api";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const templates = [
   {
@@ -39,31 +44,54 @@ const templates = [
   },
 ];
 
-const recentConversations = [
-  {
-    title: "Product inquiry discussion",
-    modelName: "GPT-4o",
-    timestamp: "2 hours ago",
-    preview: "Customer asking about product specifications and pricing...",
-    messageCount: 12,
-  },
-  {
-    title: "Technical support case",
-    modelName: "GPT-4.1",
-    timestamp: "5 hours ago",
-    preview: "Troubleshooting API integration issues with customer...",
-    messageCount: 8,
-  },
-  {
-    title: "Content review session",
-    modelName: "GPT-5",
-    timestamp: "Yesterday",
-    preview: "Reviewing and refining marketing copy for new campaign...",
-    messageCount: 15,
-  },
-];
-
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  const { data: models = [] } = useQuery<AIModel[]>({
+    queryKey: ["/api/models"],
+  });
+
+  const { data: conversations = [] } = useQuery<Conversation[]>({
+    queryKey: ["/api/conversations"],
+  });
+
+  const recentConversations = conversations.slice(0, 3);
+
+  const handleDeleteConversation = async (id: string) => {
+    try {
+      await deleteConversation(id);
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      toast({
+        title: "Success",
+        description: "Conversation deleted",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete conversation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getModelName = (modelId: string) => {
+    const model = models.find((m) => m.id === modelId);
+    return model?.name || "Unknown Model";
+  };
+
+  const formatTimestamp = (date: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - new Date(date).getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    if (hours < 1) return "Just now";
+    if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+    if (days === 1) return "Yesterday";
+    return `${days} days ago`;
+  };
+
   return (
     <div className="space-y-16">
       <div className="py-12">
@@ -76,24 +104,21 @@ export default function Dashboard() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <StatsCard
           title="Active Models"
-          value={12}
-          description="Currently deployed"
+          value={models.length}
+          description="Currently configured"
           icon={Sparkles}
-          trend={{ value: 20, isPositive: true }}
         />
         <StatsCard
           title="Total Conversations"
-          value="1,247"
-          description="This month"
+          value={conversations.length}
+          description="All time"
           icon={MessageSquare}
-          trend={{ value: 15, isPositive: true }}
         />
         <StatsCard
-          title="API Usage"
-          value="98.2%"
-          description="Uptime this month"
+          title="Recent Activity"
+          value={recentConversations.length}
+          description="Latest interactions"
           icon={TrendingUp}
-          trend={{ value: 2, isPositive: true }}
         />
       </div>
 
@@ -110,14 +135,29 @@ export default function Dashboard() {
           </Link>
         </CardHeader>
         <CardContent className="space-y-4">
-          {recentConversations.map((conversation, index) => (
-            <ConversationCard
-              key={index}
-              {...conversation}
-              onClick={() => console.log("Open conversation:", conversation.title)}
-              onDelete={() => console.log("Delete conversation:", conversation.title)}
-            />
-          ))}
+          {recentConversations.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">
+              No conversations yet. Create a model and start chatting!
+            </p>
+          ) : (
+            recentConversations.map((conversation) => {
+              const messages = (conversation.messages as any[]) || [];
+              const preview = messages.find((m) => m.role === "user")?.content || "No messages";
+              
+              return (
+                <ConversationCard
+                  key={conversation.id}
+                  title={conversation.title}
+                  modelName={getModelName(conversation.modelId)}
+                  timestamp={formatTimestamp(conversation.updatedAt)}
+                  preview={preview.slice(0, 100)}
+                  messageCount={messages.length}
+                  onClick={() => setLocation(`/chat/${conversation.modelId}/${conversation.id}`)}
+                  onDelete={() => handleDeleteConversation(conversation.id)}
+                />
+              );
+            })
+          )}
         </CardContent>
       </Card>
 
@@ -155,7 +195,12 @@ export default function Dashboard() {
                 Build a custom AI assistant tailored to your specific business needs with advanced configuration options
               </p>
             </div>
-            <Button size="lg" className="gap-2 text-base px-8 py-6 rounded-xl" data-testid="button-create-custom">
+            <Button
+              size="lg"
+              className="gap-2 text-base px-8 py-6 rounded-xl"
+              onClick={() => setLocation("/chat/new")}
+              data-testid="button-create-custom"
+            >
               <Plus className="h-5 w-5" />
               Create Model
             </Button>

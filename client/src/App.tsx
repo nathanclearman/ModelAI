@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Dashboard from "@/pages/dashboard";
+import Chat from "@/pages/chat";
 import UploadModel from "@/pages/upload-model";
 import Templates from "@/pages/templates";
 import History from "@/pages/history";
@@ -18,6 +19,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/chat/:modelId/:conversationId?" component={Chat} />
       <Route path="/upload" component={UploadModel} />
       <Route path="/templates" component={Templates} />
       <Route path="/history" component={History} />
