@@ -44,7 +44,7 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
 
   return (
     <Sidebar>
@@ -81,7 +81,11 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel className="text-sm">Quick Actions</SidebarGroupLabel>
           <SidebarGroupContent>
-            <Button className="w-full justify-start gap-2 py-6 text-base rounded-xl" data-testid="button-create-model">
+            <Button 
+              className="w-full justify-start gap-2 py-6 text-base rounded-xl" 
+              onClick={() => setLocation("/chat/new")}
+              data-testid="button-create-model"
+            >
               <Plus className="h-5 w-5" />
               Create New Model
             </Button>

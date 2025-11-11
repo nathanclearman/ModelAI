@@ -3,50 +3,20 @@ import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/stats-card";
 import { ConversationCard } from "@/components/conversation-card";
 import { TemplateCard } from "@/components/template-card";
-import { Sparkles, MessageSquare, TrendingUp, Plus, Headphones, FileText, Code, BarChart3, Users, Briefcase } from "lucide-react";
+import { Sparkles, MessageSquare, TrendingUp, Plus } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { type AIModel, type Conversation } from "@shared/schema";
 import { deleteConversation } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
-const templates = [
-  {
-    title: "Customer Support",
-    description: "AI assistant trained to handle customer inquiries with empathy and professionalism",
-    icon: Headphones,
-  },
-  {
-    title: "Content Generator",
-    description: "Create engaging marketing copy, blog posts, and social media content",
-    icon: FileText,
-  },
-  {
-    title: "Code Assistant",
-    description: "Debug code, explain concepts, and provide development guidance",
-    icon: Code,
-  },
-  {
-    title: "Data Analyst",
-    description: "Analyze data, generate insights, and create comprehensive reports",
-    icon: BarChart3,
-  },
-  {
-    title: "Sales Assistant",
-    description: "Help with sales outreach, proposal writing, and customer engagement",
-    icon: Briefcase,
-  },
-  {
-    title: "HR Assistant",
-    description: "Streamline recruitment, onboarding, and employee communications",
-    icon: Users,
-  },
-];
+import { templates } from "@/lib/templates";
+import { useTemplateCreation } from "@/hooks/use-template-creation";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const createTemplateMutation = useTemplateCreation();
 
   const { data: models = [] } = useQuery<AIModel[]>({
     queryKey: ["/api/models"],
@@ -180,7 +150,7 @@ export default function Dashboard() {
             <TemplateCard
               key={index}
               {...template}
-              onUse={() => console.log("Use template:", template.title)}
+              onUse={() => createTemplateMutation.mutate(template.title)}
             />
           ))}
         </div>

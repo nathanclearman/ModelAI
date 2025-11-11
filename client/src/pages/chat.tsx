@@ -22,7 +22,7 @@ export default function Chat() {
 
   const { data: model, isLoading } = useQuery<AIModel>({
     queryKey: ["/api/models", modelId],
-    enabled: !!modelId,
+    enabled: !!modelId && modelId !== "new",
   });
 
   const { data: conversation } = useQuery<{
@@ -151,7 +151,7 @@ export default function Chat() {
     },
   });
 
-  if (isLoading) {
+  if (isLoading && modelId !== "new") {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-muted-foreground">Loading...</p>
