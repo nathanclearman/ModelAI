@@ -13,8 +13,8 @@ export function TemplateCard({ title, description, icon: Icon, onUse }: Template
   return (
     <Card className="hover-elevate transition-all duration-300 border-none shadow-lg">
       <CardHeader className="p-8">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mb-6">
-          <Icon className="h-8 w-8 text-primary" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-foreground/8 mb-6">
+          <Icon className="h-8 w-8 text-foreground" />
         </div>
         <CardTitle className="text-2xl mb-3">{title}</CardTitle>
         <CardDescription className="text-base leading-relaxed line-clamp-2">{description}</CardDescription>

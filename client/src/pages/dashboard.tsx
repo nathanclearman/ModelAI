@@ -146,7 +146,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Card className="bg-gradient-to-br from-primary/5 via-primary/3 to-background border-none shadow-lg">
+      <Card className="bg-gradient-to-br from-foreground/5 via-foreground/3 to-background border-none shadow-lg">
         <CardContent className="p-12">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
             <div>
