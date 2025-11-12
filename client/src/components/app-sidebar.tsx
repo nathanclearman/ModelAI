@@ -22,6 +22,11 @@ const menuItems = [
     icon: Home,
   },
   {
+    title: "My Models",
+    url: "/models",
+    icon: Sparkles,
+  },
+  {
     title: "Upload Model",
     url: "/upload",
     icon: Upload,

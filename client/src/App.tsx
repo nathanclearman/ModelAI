@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
+import Models from "@/pages/models";
 import Chat from "@/pages/chat";
 import UploadModel from "@/pages/upload-model";
 import Templates from "@/pages/templates";
@@ -38,6 +39,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/models" component={Models} />
       <Route path="/chat/:modelId/:conversationId?" component={Chat} />
       <Route path="/upload" component={UploadModel} />
       <Route path="/templates" component={Templates} />
