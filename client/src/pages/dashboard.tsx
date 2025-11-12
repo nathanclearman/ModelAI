@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/stats-card";
 import { ConversationCard } from "@/components/conversation-card";
 import { TemplateCard } from "@/components/template-card";
-import { Sparkles, MessageSquare, TrendingUp, Plus } from "lucide-react";
+import { Layers, MessageSquare, Activity, Plus } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { type AIModel, type Conversation } from "@shared/schema";
@@ -64,15 +64,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-16">
-      <div className="relative py-16 px-8 -mx-8 rounded-3xl bg-gradient-to-br from-primary/10 via-accent/5 to-background overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent opacity-40"></div>
+      <div className="relative py-12 px-8 -mx-8 rounded-2xl bg-muted/30 overflow-hidden border border-border/50">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         <div className="relative">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-            <span>Welcome back!</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium mb-5">
+            <span>Welcome back</span>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4">Dashboard</h1>
-          <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-            Manage models and monitor their performance
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">Dashboard</h1>
+          <p className="text-lg text-muted-foreground max-w-2xl">
+            Manage your AI models and monitor conversations
           </p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function Dashboard() {
           title="Active Models"
           value={models.length}
           description="Currently configured"
-          icon={Sparkles}
+          icon={Layers}
         />
         <StatsCard
           title="Total Conversations"
@@ -94,7 +94,7 @@ export default function Dashboard() {
           title="Recent Activity"
           value={recentConversations.length}
           description="Latest interactions"
-          icon={TrendingUp}
+          icon={Activity}
         />
       </div>
 
@@ -162,18 +162,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Card className="bg-gradient-to-br from-foreground/5 via-foreground/3 to-background border-none shadow-lg">
-        <CardContent className="p-12">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+      <Card className="bg-muted/30 border-border/50">
+        <CardContent className="p-10">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
-              <h3 className="text-3xl font-semibold mb-4 tracking-tight">Create Your Custom Model</h3>
-              <p className="text-lg text-muted-foreground max-w-2xl leading-relaxed">
-                Build a custom AI assistant tailored to your needs
+              <h3 className="text-2xl font-semibold mb-2 tracking-tight">Build Your Custom Model</h3>
+              <p className="text-base text-muted-foreground max-w-2xl">
+                Create an AI assistant tailored to your specific needs
               </p>
             </div>
             <Button
               size="lg"
-              className="gap-2 text-base px-8 py-6 rounded-xl"
+              className="gap-2"
               onClick={() => setLocation("/chat/new")}
               data-testid="button-create-custom"
             >

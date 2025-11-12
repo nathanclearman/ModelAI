@@ -11,21 +11,21 @@ interface TemplateCardProps {
 
 export function TemplateCard({ title, description, icon: Icon, onUse }: TemplateCardProps) {
   return (
-    <Card className="hover-elevate transition-all duration-300 border-none shadow-lg">
-      <CardHeader className="p-8">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-foreground/8 mb-6">
-          <Icon className="h-8 w-8 text-foreground" />
+    <Card className="hover-elevate">
+      <CardHeader className="p-6">
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
+          <Icon className="h-6 w-6 text-primary" strokeWidth={2} />
         </div>
-        <CardTitle className="text-2xl mb-3">{title}</CardTitle>
-        <CardDescription className="text-base leading-relaxed line-clamp-2">{description}</CardDescription>
+        <CardTitle className="text-xl mb-2">{title}</CardTitle>
+        <CardDescription className="text-sm line-clamp-2">{description}</CardDescription>
       </CardHeader>
-      <CardContent className="p-8 pt-0">
+      <CardContent className="p-6 pt-0">
         <Button
           onClick={() => {
             console.log(`Using template: ${title}`);
             onUse?.();
           }}
-          className="w-full text-base py-6 rounded-xl"
+          className="w-full"
           data-testid={`button-use-${title.toLowerCase().replace(/\s+/g, "-")}`}
         >
           Use Template

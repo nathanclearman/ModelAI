@@ -1,4 +1,4 @@
-import { Home, Sparkles, History, Settings, Plus, Upload } from "lucide-react";
+import { Home, Layers, History, Settings, Plus, Upload, BookTemplate, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -24,7 +24,7 @@ const menuItems = [
   {
     title: "My Models",
     url: "/models",
-    icon: Sparkles,
+    icon: Layers,
   },
   {
     title: "Upload Model",
@@ -34,7 +34,7 @@ const menuItems = [
   {
     title: "Templates",
     url: "/templates",
-    icon: Sparkles,
+    icon: BookTemplate,
   },
   {
     title: "History",
@@ -55,12 +55,15 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground font-bold text-xl shadow-lg">
-            AI
+          <div className="relative flex h-9 w-9 items-center justify-center">
+            <div className="absolute inset-0 rounded-lg bg-primary/20 rotate-6"></div>
+            <div className="relative rounded-lg bg-primary p-1.5">
+              <Zap className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
+            </div>
           </div>
           <div className="flex flex-col">
-            <span className="text-base font-semibold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">ModelAI</span>
-            <span className="text-sm text-muted-foreground">Powered by AI</span>
+            <span className="text-base font-semibold tracking-tight">ModelHub</span>
+            <span className="text-xs text-muted-foreground">AI Platform</span>
           </div>
         </div>
       </SidebarHeader>
@@ -87,19 +90,20 @@ export function AppSidebar() {
           <SidebarGroupLabel className="text-sm">Quick Actions</SidebarGroupLabel>
           <SidebarGroupContent>
             <Button 
-              className="w-full justify-start gap-2 py-6 text-base rounded-xl bg-gradient-to-r from-primary to-accent hover:shadow-lg hover:shadow-primary/20 transition-all duration-300" 
+              variant="default"
+              className="w-full justify-start gap-2 py-6 text-base rounded-lg" 
               onClick={() => setLocation("/chat/new")}
               data-testid="button-create-model"
             >
               <Plus className="h-5 w-5" />
-              Create New Model
+              New Model
             </Button>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-6">
-        <div className="text-sm text-muted-foreground">
-          © 2025 ModelAI. All rights reserved.
+        <div className="text-xs text-muted-foreground/60">
+          © 2025 ModelHub
         </div>
       </SidebarFooter>
     </Sidebar>
