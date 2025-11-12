@@ -325,8 +325,8 @@ export default function Settings() {
 
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-destructive">Danger Zone</CardTitle>
-          <CardDescription>Irreversible and destructive actions</CardDescription>
+          <CardTitle className="text-destructive">Account Deletion</CardTitle>
+          <CardDescription>Warning: You can not go back after deleting your account.</CardDescription>
         </CardHeader>
         <CardContent>
           <Button variant="destructive" data-testid="button-delete-account">
