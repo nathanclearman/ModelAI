@@ -50,6 +50,12 @@ export default function WorkspacesPage() {
 
   const { data: members = [] } = useQuery<WorkspaceMember[]>({
     queryKey: ["/api/workspaces", selectedWorkspace, "members"],
+    queryFn: async () => {
+      if (!selectedWorkspace) return [];
+      const res = await fetch(`/api/workspaces/${selectedWorkspace}/members`);
+      if (!res.ok) throw new Error("Failed to fetch members");
+      return res.json();
+    },
     enabled: !!selectedWorkspace,
   });
 
