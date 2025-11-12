@@ -43,6 +43,7 @@ export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 export const aiModels = pgTable("ai_models", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
+  workspaceId: varchar("workspace_id"),
   name: text("name").notNull(),
   description: text("description"),
   systemPrompt: text("system_prompt").notNull(),
@@ -120,3 +121,63 @@ export const modelLikes = pgTable("model_likes", {
 });
 
 export type ModelLike = typeof modelLikes.$inferSelect;
+
+// Workspaces for team collaboration
+export const workspaces = pgTable("workspaces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  ownerId: varchar("owner_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertWorkspaceSchema = createInsertSchema(workspaces).omit({
+  id: true,
+  ownerId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
+export type Workspace = typeof workspaces.$inferSelect;
+
+// Workspace members with role-based access
+export const workspaceMembers = pgTable("workspace_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: varchar("workspace_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  role: text("role").notNull().default("viewer"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertWorkspaceMemberSchema = createInsertSchema(workspaceMembers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertWorkspaceMember = z.infer<typeof insertWorkspaceMemberSchema>;
+export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
+
+// API keys for model access
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  modelId: varchar("model_id"),
+  name: text("name").notNull(),
+  key: text("key").notNull().unique(),
+  lastUsed: timestamp("last_used"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
+  id: true,
+  userId: true,
+  key: true,
+  lastUsed: true,
+  createdAt: true,
+});
+
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+export type ApiKey = typeof apiKeys.$inferSelect;

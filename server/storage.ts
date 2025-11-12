@@ -8,6 +8,9 @@ import {
   conversations,
   usageLogs,
   modelLikes,
+  workspaces,
+  workspaceMembers,
+  apiKeys,
   type User,
   type UpsertUser,
   type AIModel,
@@ -17,6 +20,12 @@ import {
   type UsageLog,
   type InsertUsageLog,
   type ModelLike,
+  type Workspace,
+  type InsertWorkspace,
+  type WorkspaceMember,
+  type InsertWorkspaceMember,
+  type ApiKey,
+  type InsertApiKey,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -77,6 +86,27 @@ export interface IStorage {
     recentUsers: User[];
   }>;
   updateUserAdminStatus(userId: string, isAdmin: number): Promise<User | undefined>;
+  
+  // Workspace methods
+  createWorkspace(userId: string, workspace: InsertWorkspace): Promise<Workspace>;
+  getWorkspace(id: string): Promise<Workspace | undefined>;
+  getUserWorkspaces(userId: string): Promise<Workspace[]>;
+  updateWorkspace(id: string, workspace: Partial<InsertWorkspace>): Promise<Workspace | undefined>;
+  deleteWorkspace(id: string): Promise<boolean>;
+  
+  // Workspace member methods
+  addWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember>;
+  getWorkspaceMembers(workspaceId: string): Promise<Array<WorkspaceMember & { user: User }>>;
+  updateWorkspaceMemberRole(workspaceId: string, userId: string, role: string): Promise<WorkspaceMember | undefined>;
+  removeWorkspaceMember(workspaceId: string, userId: string): Promise<boolean>;
+  getUserWorkspaceRole(userId: string, workspaceId: string): Promise<string | null>;
+  
+  // API key methods
+  createApiKey(userId: string, apiKey: InsertApiKey): Promise<ApiKey>;
+  getApiKey(keyString: string): Promise<ApiKey | undefined>;
+  getUserApiKeys(userId: string): Promise<ApiKey[]>;
+  updateApiKeyLastUsed(id: string): Promise<void>;
+  deleteApiKey(userId: string, id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -449,6 +479,166 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return result[0];
+  }
+
+  // Workspace methods
+  async createWorkspace(userId: string, workspace: InsertWorkspace): Promise<Workspace> {
+    const [created] = await db
+      .insert(workspaces)
+      .values({ ...workspace, ownerId: userId })
+      .returning();
+
+    // Auto-add owner as admin member
+    await db.insert(workspaceMembers).values({
+      workspaceId: created.id,
+      userId,
+      role: "owner",
+    });
+
+    return created;
+  }
+
+  async getWorkspace(id: string): Promise<Workspace | undefined> {
+    const result = await db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, id));
+    return result[0];
+  }
+
+  async getUserWorkspaces(userId: string): Promise<Workspace[]> {
+    const result = await db
+      .select({
+        id: workspaces.id,
+        name: workspaces.name,
+        description: workspaces.description,
+        ownerId: workspaces.ownerId,
+        createdAt: workspaces.createdAt,
+        updatedAt: workspaces.updatedAt,
+      })
+      .from(workspaces)
+      .innerJoin(workspaceMembers, eq(workspaces.id, workspaceMembers.workspaceId))
+      .where(eq(workspaceMembers.userId, userId))
+      .orderBy(desc(workspaces.createdAt));
+    
+    return result;
+  }
+
+  async updateWorkspace(id: string, workspace: Partial<InsertWorkspace>): Promise<Workspace | undefined> {
+    const result = await db
+      .update(workspaces)
+      .set({ ...workspace, updatedAt: new Date() })
+      .where(eq(workspaces.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteWorkspace(id: string): Promise<boolean> {
+    // Delete workspace members first
+    await db.delete(workspaceMembers).where(eq(workspaceMembers.workspaceId, id));
+    
+    // Delete the workspace
+    const result = await db
+      .delete(workspaces)
+      .where(eq(workspaces.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Workspace member methods
+  async addWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember> {
+    const [created] = await db
+      .insert(workspaceMembers)
+      .values(member)
+      .returning();
+    return created;
+  }
+
+  async getWorkspaceMembers(workspaceId: string): Promise<Array<WorkspaceMember & { user: User }>> {
+    const result = await db
+      .select()
+      .from(workspaceMembers)
+      .innerJoin(users, eq(workspaceMembers.userId, users.id))
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+
+    return result.map(r => ({
+      ...r.workspace_members,
+      user: r.users,
+    }));
+  }
+
+  async updateWorkspaceMemberRole(workspaceId: string, userId: string, role: string): Promise<WorkspaceMember | undefined> {
+    const result = await db
+      .update(workspaceMembers)
+      .set({ role })
+      .where(and(
+        eq(workspaceMembers.workspaceId, workspaceId),
+        eq(workspaceMembers.userId, userId)
+      ))
+      .returning();
+    return result[0];
+  }
+
+  async removeWorkspaceMember(workspaceId: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(workspaceMembers)
+      .where(and(
+        eq(workspaceMembers.workspaceId, workspaceId),
+        eq(workspaceMembers.userId, userId)
+      ))
+      .returning();
+    return result.length > 0;
+  }
+
+  async getUserWorkspaceRole(userId: string, workspaceId: string): Promise<string | null> {
+    const result = await db
+      .select()
+      .from(workspaceMembers)
+      .where(and(
+        eq(workspaceMembers.userId, userId),
+        eq(workspaceMembers.workspaceId, workspaceId)
+      ));
+    return result[0]?.role || null;
+  }
+
+  // API key methods
+  async createApiKey(userId: string, apiKey: InsertApiKey): Promise<ApiKey> {
+    const [created] = await db
+      .insert(apiKeys)
+      .values({ ...apiKey, userId })
+      .returning();
+    return created;
+  }
+
+  async getApiKey(keyString: string): Promise<ApiKey | undefined> {
+    const result = await db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.key, keyString));
+    return result[0];
+  }
+
+  async getUserApiKeys(userId: string): Promise<ApiKey[]> {
+    return await db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.userId, userId))
+      .orderBy(desc(apiKeys.createdAt));
+  }
+
+  async updateApiKeyLastUsed(id: string): Promise<void> {
+    await db
+      .update(apiKeys)
+      .set({ lastUsed: new Date() })
+      .where(eq(apiKeys.id, id));
+  }
+
+  async deleteApiKey(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(apiKeys)
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)))
+      .returning();
+    return result.length > 0;
   }
 }
 
