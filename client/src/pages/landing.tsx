@@ -1,10 +1,47 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Brain, LogIn } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Brain } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Landing() {
-  const handleLogin = () => {
-    window.location.href = "/api/login";
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const endpoint = isLogin ? "/api/login" : "/api/register";
+      const body = isLogin
+        ? { email, password }
+        : { email, password, firstName, lastName };
+
+      await apiRequest(endpoint, "POST", body);
+      
+      // Invalidate and refetch user data
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      
+      // Reload the page to show authenticated app
+      window.location.href = "/";
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Authentication failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -18,22 +55,85 @@ export default function Landing() {
             AI Model Management
           </CardTitle>
           <CardDescription className="text-base">
-            Sign in to manage your AI models, chat with assistants, and view conversation history
+            {isLogin ? "Sign in to your account" : "Create a new account"}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Button
-            size="lg"
-            className="w-full gap-2 text-base py-6 rounded-xl"
-            onClick={handleLogin}
-            data-testid="button-sign-in"
-          >
-            <LogIn className="h-5 w-5" />
-            Sign In with Replit
-          </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            Use your Replit account to access the platform
-          </p>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="John"
+                    data-testid="input-first-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Doe"
+                    data-testid="input-last-name"
+                  />
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                data-testid="input-email"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                data-testid="input-password"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full rounded-xl"
+              disabled={isLoading}
+              data-testid="button-submit"
+            >
+              {isLoading ? "Loading..." : isLogin ? "Sign In" : "Create Account"}
+            </Button>
+          </form>
+
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-toggle-mode"
+            >
+              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            </button>
+          </div>
         </CardContent>
       </Card>
     </div>

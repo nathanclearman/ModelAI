@@ -20,8 +20,10 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);
 
 export interface IStorage {
-  // User methods (required for Replit Auth)
+  // User methods
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: UpsertUser): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   // AI Model methods (all scoped to userId)
@@ -41,10 +43,20 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // User methods (required for Replit Auth)
+  // User methods
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id));
     return result[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email));
+    return result[0];
+  }
+
+  async createUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(userData).returning();
+    return user;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
