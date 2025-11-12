@@ -1,4 +1,4 @@
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql as drizzleSql, sum, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { neonConfig, Pool } from "@neondatabase/serverless";
 import ws from "ws";
@@ -6,12 +6,15 @@ import {
   users,
   aiModels,
   conversations,
+  usageLogs,
   type User,
   type UpsertUser,
   type AIModel,
   type InsertAIModel,
   type Conversation,
   type InsertConversation,
+  type UsageLog,
+  type InsertUsageLog,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -41,6 +44,20 @@ export interface IStorage {
   getConversationsByModel(userId: string, modelId: string): Promise<Conversation[]>;
   updateConversation(userId: string, id: string, conversation: Partial<InsertConversation>): Promise<Conversation | undefined>;
   deleteConversation(userId: string, id: string): Promise<boolean>;
+  
+  // Usage tracking methods
+  logUsage(usage: InsertUsageLog): Promise<UsageLog>;
+  getUserUsageStats(userId: string, days?: number): Promise<{
+    totalTokens: number;
+    totalCost: number;
+    usageByModel: Array<{ model: string; tokens: number }>;
+    usageOverTime: Array<{ date: string; tokens: number }>;
+  }>;
+  getModelUsageStats(userId: string, modelId: string): Promise<{
+    totalTokens: number;
+    totalConversations: number;
+    averageTokensPerConversation: number;
+  }>;
   
   // Admin methods
   getAllUsers(): Promise<User[]>;
@@ -178,6 +195,103 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  // Usage tracking methods
+  async logUsage(usage: InsertUsageLog): Promise<UsageLog> {
+    const [log] = await db.insert(usageLogs).values(usage).returning();
+    return log;
+  }
+
+  async getUserUsageStats(userId: string, days: number = 30): Promise<{
+    totalTokens: number;
+    totalCost: number;
+    usageByModel: Array<{ model: string; tokens: number }>;
+    usageOverTime: Array<{ date: string; tokens: number }>;
+  }> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    // Get total tokens
+    const allUsage = await db
+      .select()
+      .from(usageLogs)
+      .where(and(
+        eq(usageLogs.userId, userId),
+        drizzleSql`${usageLogs.createdAt} >= ${cutoffDate}`
+      ));
+
+    const totalTokens = allUsage.reduce((sum, log) => sum + log.totalTokens, 0);
+    
+    // Estimate cost (rough estimates per 1K tokens)
+    const costPerModel: Record<string, number> = {
+      'gpt-4o': 0.005,
+      'gpt-4o-mini': 0.0005,
+      'gpt-4': 0.03,
+      'gpt-3.5-turbo': 0.001,
+      'default': 0.002
+    };
+    
+    const totalCost = allUsage.reduce((sum, log) => {
+      const costPer1k = costPerModel[log.model] || costPerModel['default'];
+      return sum + (log.totalTokens / 1000) * costPer1k;
+    }, 0);
+
+    // Usage by model
+    const usageByModelMap = new Map<string, number>();
+    allUsage.forEach(log => {
+      const current = usageByModelMap.get(log.model) || 0;
+      usageByModelMap.set(log.model, current + log.totalTokens);
+    });
+    const usageByModel = Array.from(usageByModelMap.entries()).map(([model, tokens]) => ({
+      model,
+      tokens
+    }));
+
+    // Usage over time (daily)
+    const usageByDate = new Map<string, number>();
+    allUsage.forEach(log => {
+      const date = new Date(log.createdAt).toISOString().split('T')[0];
+      const current = usageByDate.get(date) || 0;
+      usageByDate.set(date, current + log.totalTokens);
+    });
+    const usageOverTime = Array.from(usageByDate.entries())
+      .map(([date, tokens]) => ({ date, tokens }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      totalTokens,
+      totalCost,
+      usageByModel,
+      usageOverTime,
+    };
+  }
+
+  async getModelUsageStats(userId: string, modelId: string): Promise<{
+    totalTokens: number;
+    totalConversations: number;
+    averageTokensPerConversation: number;
+  }> {
+    const modelUsage = await db
+      .select()
+      .from(usageLogs)
+      .where(and(
+        eq(usageLogs.userId, userId),
+        eq(usageLogs.modelId, modelId)
+      ));
+
+    const totalTokens = modelUsage.reduce((sum, log) => sum + log.totalTokens, 0);
+    const uniqueConversations = new Set(modelUsage.map(log => log.conversationId).filter(Boolean));
+    const totalConversations = uniqueConversations.size;
+    const averageTokensPerConversation = totalConversations > 0 
+      ? Math.round(totalTokens / totalConversations)
+      : 0;
+
+    return {
+      totalTokens,
+      totalConversations,
+      averageTokensPerConversation,
+    };
   }
 
   // Admin methods

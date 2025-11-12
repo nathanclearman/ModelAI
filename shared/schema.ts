@@ -89,3 +89,19 @@ export type Message = {
   content: string;
   timestamp: string;
 };
+
+// Usage tracking table for analytics
+export const usageLogs = pgTable("usage_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  modelId: varchar("model_id").notNull(),
+  conversationId: varchar("conversation_id"),
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  model: text("model").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type UsageLog = typeof usageLogs.$inferSelect;
+export type InsertUsageLog = typeof usageLogs.$inferInsert;

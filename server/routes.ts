@@ -264,15 +264,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         temperature: model.temperature / 100,
         max_tokens: model.maxTokens,
         stream: true,
+        stream_options: { include_usage: true },
       });
 
       let fullResponse = "";
+      let usageData: any = null;
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || "";
         if (content) {
           fullResponse += content;
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+        // Capture usage data from the final chunk
+        if (chunk.usage) {
+          usageData = chunk.usage;
         }
       }
 
@@ -297,6 +303,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           modelId: model.id,
           title,
           messages: messages as any,
+        });
+      }
+
+      // Log token usage for analytics
+      if (usageData) {
+        await storage.logUsage({
+          userId,
+          modelId: model.id,
+          conversationId: savedConversation?.id,
+          promptTokens: usageData.prompt_tokens || 0,
+          completionTokens: usageData.completion_tokens || 0,
+          totalTokens: usageData.total_tokens || 0,
+          model: model.model,
         });
       }
 
@@ -398,6 +417,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user conversations:", error);
       res.status(500).json({ message: "Failed to fetch user conversations" });
+    }
+  });
+
+  // Analytics API endpoints
+  app.get('/api/analytics/usage', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const days = parseInt(req.query.days as string) || 30;
+      
+      const stats = await storage.getUserUsageStats(userId, days);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching usage stats:", error);
+      res.status(500).json({ message: "Failed to fetch usage statistics" });
+    }
+  });
+
+  app.get('/api/analytics/models/:modelId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { modelId } = req.params;
+      
+      const stats = await storage.getModelUsageStats(userId, modelId);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching model stats:", error);
+      res.status(500).json({ message: "Failed to fetch model statistics" });
     }
   });
 
