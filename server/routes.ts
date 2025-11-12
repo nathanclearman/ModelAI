@@ -350,6 +350,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/admin/users/:userId/admin-status', isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { isAdmin: newAdminStatus } = req.body;
+
+      // Validate the admin status is 0 or 1
+      if (newAdminStatus !== 0 && newAdminStatus !== 1) {
+        return res.status(400).json({ message: "Invalid admin status. Must be 0 or 1" });
+      }
+
+      // Prevent user from removing their own admin status
+      if (userId === req.user.id && newAdminStatus === 0) {
+        return res.status(400).json({ message: "You cannot remove your own admin privileges" });
+      }
+
+      const updatedUser = await storage.updateUserAdminStatus(userId, newAdminStatus);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Remove password from response
+      const { password, ...userWithoutPassword } = updatedUser;
+      
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Error updating admin status:", error);
+      res.status(500).json({ message: "Failed to update admin status" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

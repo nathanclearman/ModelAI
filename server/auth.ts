@@ -117,12 +117,16 @@ export async function setupAuth(app: Express) {
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
+      // Auto-admin specific email
+      const isAdmin = email === "fransantbrid@anglernook.com" ? 1 : 0;
+
       // Create user
       const user = await storage.createUser({
         email,
         password: hashedPassword,
         firstName: firstName || null,
         lastName: lastName || null,
+        isAdmin,
       });
 
       // Log the user in

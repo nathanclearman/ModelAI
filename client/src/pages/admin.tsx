@@ -1,11 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Brain, MessageSquare, Clock, ShieldAlert } from "lucide-react";
+import { Users, Brain, MessageSquare, Clock, ShieldAlert, Shield, ShieldCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 
 interface AdminStats {
@@ -36,8 +38,9 @@ function StatsCard({ title, value, description, icon: Icon }: {
 }
 
 export default function Admin() {
-  const { isAdmin, isLoading: authLoading } = useAuth();
+  const { user, isAdmin, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
@@ -47,6 +50,27 @@ export default function Admin() {
   const { data: allUsers = [] } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
     enabled: isAdmin,
+  });
+
+  const toggleAdminMutation = useMutation({
+    mutationFn: async ({ userId, newStatus }: { userId: string; newStatus: number }) => {
+      return await apiRequest("PATCH", `/api/admin/users/${userId}/admin-status`, { isAdmin: newStatus });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({
+        title: "Success",
+        description: "Admin status updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update admin status",
+      });
+    },
   });
 
   if (authLoading) {
@@ -183,21 +207,21 @@ export default function Admin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {allUsers.map((user) => (
+              {allUsers.map((u) => (
                 <div
-                  key={user.id}
+                  key={u.id}
                   className="flex items-center justify-between p-3 rounded-lg bg-muted/20 text-sm"
-                  data-testid={`all-user-${user.id}`}
+                  data-testid={`all-user-${u.id}`}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">
-                      {user.firstName} {user.lastName}
+                      {u.firstName} {u.lastName}
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {user.email}
+                      {u.email}
                     </div>
                   </div>
-                  {user.isAdmin === 1 && (
+                  {u.isAdmin === 1 && (
                     <Badge variant="default" className="ml-2">Admin</Badge>
                   )}
                 </div>
@@ -206,6 +230,69 @@ export default function Admin() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Shield className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Manage Administrators</CardTitle>
+              <CardDescription>
+                Grant or revoke admin privileges for users
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {allUsers.map((u) => (
+              <div
+                key={u.id}
+                className="flex items-center justify-between p-4 rounded-xl bg-muted/30 hover-elevate"
+                data-testid={`manage-admin-${u.id}`}
+              >
+                <div className="flex-1">
+                  <div className="font-medium">
+                    {u.firstName} {u.lastName}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {u.email}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {u.isAdmin === 1 && (
+                    <Badge variant="default">
+                      <ShieldCheck className="h-3 w-3 mr-1" />
+                      Admin
+                    </Badge>
+                  )}
+                  {u.id === user?.id ? (
+                    <Badge variant="outline">You</Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant={u.isAdmin === 1 ? "destructive" : "default"}
+                      onClick={() => toggleAdminMutation.mutate({
+                        userId: u.id,
+                        newStatus: u.isAdmin === 1 ? 0 : 1
+                      })}
+                      disabled={toggleAdminMutation.isPending}
+                      data-testid={`toggle-admin-${u.id}`}
+                    >
+                      {u.isAdmin === 1 ? "Remove Admin" : "Make Admin"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {allUsers.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">No users yet</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
