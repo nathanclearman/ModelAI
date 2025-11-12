@@ -18,7 +18,12 @@ The backend is an Express.js application written in TypeScript, featuring RESTfu
 
 ### Feature Specifications
 The platform includes:
-- **Authentication:** Traditional email/password login with secure session management.
+- **Authentication:** Traditional email/password login with secure session management and account switching.
+  - User menu with avatar showing user initials
+  - Dropdown menu displaying name and email
+  - Settings shortcut from user menu
+  - Logout functionality to switch between accounts
+  - All user data automatically saved and isolated per account
 - **AI Model Management:** Create, view, edit, and delete AI models with custom prompts and parameters.
 - **Conversation Management:** Real-time streaming chat, conversation history, and export capabilities.
 - **Templates:** Pre-configured AI assistant templates for various use cases.
