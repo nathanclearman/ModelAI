@@ -381,6 +381,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/admin/users/:userId/conversations', isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+
+      // Verify user exists
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get all conversations for this user
+      const conversations = await storage.getAllConversations(userId);
+      
+      res.json(conversations);
+    } catch (error) {
+      console.error("Error fetching user conversations:", error);
+      res.status(500).json({ message: "Failed to fetch user conversations" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

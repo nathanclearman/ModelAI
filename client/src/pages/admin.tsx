@@ -1,14 +1,16 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Brain, MessageSquare, Clock, ShieldAlert, Shield, ShieldCheck } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Users, Brain, MessageSquare, Clock, ShieldAlert, Shield, ShieldCheck, Download, Eye } from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { User } from "@shared/schema";
+import type { User, Conversation } from "@shared/schema";
 
 interface AdminStats {
   totalUsers: number;
@@ -41,6 +43,7 @@ export default function Admin() {
   const { user, isAdmin, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
@@ -50,6 +53,11 @@ export default function Admin() {
   const { data: allUsers = [] } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
     enabled: isAdmin,
+  });
+
+  const { data: userConversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
+    queryKey: [`/api/admin/users/${selectedUser?.id}/conversations`],
+    enabled: !!selectedUser,
   });
 
   const toggleAdminMutation = useMutation({
@@ -72,6 +80,38 @@ export default function Admin() {
       });
     },
   });
+
+  const exportConversation = (conversation: Conversation) => {
+    const messages = conversation.messages as any[];
+    const jsonlContent = messages.map(msg => JSON.stringify(msg)).join('\n');
+    const blob = new Blob([jsonlContent], { type: 'application/jsonl' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-${conversation.id}.jsonl`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAllConversations = () => {
+    if (!userConversations.length) return;
+    
+    const allMessages = userConversations.flatMap(conv => 
+      (conv.messages as any[]).map(msg => JSON.stringify(msg))
+    );
+    const jsonlContent = allMessages.join('\n');
+    const blob = new Blob([jsonlContent], { type: 'application/jsonl' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedUser?.firstName}-${selectedUser?.lastName}-all-conversations.jsonl`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   if (authLoading) {
     return (
@@ -268,6 +308,15 @@ export default function Admin() {
                       Admin
                     </Badge>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedUser(u)}
+                    data-testid={`view-conversations-${u.id}`}
+                  >
+                    <Eye className="h-3 w-3 mr-2" />
+                    View Conversations
+                  </Button>
                   {u.id === user?.id ? (
                     <Badge variant="outline">You</Badge>
                   ) : (
@@ -293,6 +342,95 @@ export default function Admin() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedUser?.firstName} {selectedUser?.lastName}'s Conversations
+            </DialogTitle>
+            <DialogDescription>
+              View and export all conversations for {selectedUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            {conversationsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+              </div>
+            ) : userConversations.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                No conversations yet
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between pb-4 border-b">
+                  <div className="text-sm text-muted-foreground">
+                    {userConversations.length} conversation{userConversations.length !== 1 ? 's' : ''}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={exportAllConversations}
+                    data-testid="export-all-conversations"
+                  >
+                    <Download className="h-3 w-3 mr-2" />
+                    Export All
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {userConversations.map((conversation) => {
+                    const messages = conversation.messages as any[];
+                    const messageCount = messages?.length || 0;
+                    const lastMessage = messages?.[messages.length - 1];
+
+                    return (
+                      <div
+                        key={conversation.id}
+                        className="p-4 rounded-xl bg-muted/30 hover-elevate"
+                        data-testid={`conversation-${conversation.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-medium truncate">
+                                {conversation.title || 'Untitled Conversation'}
+                              </h4>
+                              <Badge variant="outline" className="text-xs">
+                                {messageCount} message{messageCount !== 1 ? 's' : ''}
+                              </Badge>
+                            </div>
+                            {lastMessage && (
+                              <p className="text-sm text-muted-foreground line-clamp-2">
+                                {lastMessage.content}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {conversation.updatedAt && format(new Date(conversation.updatedAt), 'MMM d, yyyy h:mm a')}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => exportConversation(conversation)}
+                            data-testid={`export-conversation-${conversation.id}`}
+                          >
+                            <Download className="h-3 w-3 mr-2" />
+                            Export
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
