@@ -57,6 +57,15 @@ Preferred communication style: Simple, everyday language.
   - Temperature display on proper 0-2 OpenAI scale (stored as 0-100 in DB, divided by 100 for display)
   - Integrated into sidebar navigation
   - End-to-end tested: create model → chat → save → view models → start new chat → resume from history
+- ✅ **Account Information Management** - Pre-filled profile settings
+  - Account information page shows user's email, first name, last name (pre-filled from database)
+  - Email field is disabled (cannot be changed)
+  - Company name field is optional and can be filled in later
+  - PATCH /api/auth/user endpoint with Zod validation (updateUserProfileSchema)
+  - Secure implementation: password field never returned in API responses
+  - Loading states and proper error handling with toast notifications
+  - Changes persist across page refreshes
+  - End-to-end tested: update profile → verify persistence → clear optional fields
 
 ## System Architecture
 
@@ -114,14 +123,15 @@ Preferred communication style: Simple, everyday language.
 - JSON request/response format with Zod schema validation
 
 **Routing Structure:**
-- `/api/auth/user` - Get current authenticated user (protected)
+- `/api/auth/user` - Get current authenticated user (protected, password excluded)
+- `PATCH /api/auth/user` - Update user profile (protected, Zod validated, password excluded from response)
 - `/api/models` - AI model management (GET, POST, PATCH, DELETE) (protected, filtered by userId)
 - `/api/models/:id` - Single model operations (protected, filtered by userId)
 - `/api/conversations` - Conversation management (protected, filtered by userId)
 - `/api/conversations/:id` - Single conversation operations (protected, filtered by userId)
 - `/api/chat` - Streaming chat endpoint with async generators (protected)
-- `/login` - Replit Auth login endpoint (redirects to auth provider)
-- `/auth/callback` - OAuth callback handler for Replit Auth
+- `/login` - Email/password login endpoint
+- `/register` - Email/password registration endpoint
 
 **Data Validation:**
 - Zod schemas for runtime type validation
@@ -136,8 +146,8 @@ Preferred communication style: Simple, everyday language.
 - Drizzle ORM for type-safe database queries and migrations
 
 **Schema Design:**
-- `users` table - User authentication and profile data (id, email, firstName, lastName, profileImageUrl, createdAt, updatedAt)
-- `sessions` table - Session storage for Replit Auth (sid, sess, expire)
+- `users` table - User authentication and profile data (id, email, password, firstName, lastName, companyName, profileImageUrl, createdAt, updatedAt)
+- `sessions` table - Session storage for passport sessions (sid, sess, expire)
 - `ai_models` table - AI model configurations with system prompts, temperature, max tokens, userId foreign key
 - `conversations` table - Chat history stored as JSONB messages array, userId foreign key
 
