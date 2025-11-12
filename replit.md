@@ -35,14 +35,14 @@ Preferred communication style: Simple, everyday language.
   - Enhanced chat interface with organic bubble shapes and subtle shadows
   - Improved spacing and breathing room throughout the application
   - Delightful micro-interactions and smooth transitions
-- ✅ **Replit Auth Integration** - Complete authentication system with Google, GitHub, and email/password login
-  - Session-based authentication using Replit Auth (OpenID Connect)
+- ✅ **Traditional Email/Password Authentication** - Complete authentication system with email/password login
+  - Session-based authentication using passport-local strategy with bcrypt password hashing
   - PostgreSQL session storage for persistent login across restarts
   - All API routes protected with authentication middleware
   - Per-user data isolation - all AI models and conversations scoped to userId
-  - Landing page for unauthenticated users with sign-in capability
-  - User profile data (email, firstName, lastName, profileImageUrl) from auth providers
-  - Secure session management with automatic token refresh
+  - Landing page with email/password form for both sign-in and registration
+  - User profile data (email, firstName, lastName) stored in database
+  - Secure session management with HTTP-only cookies
   - setupAuth initialized once at server bootstrap to prevent middleware conflicts
 - ✅ End-to-end tested and verified working
 
@@ -141,18 +141,19 @@ Preferred communication style: Simple, everyday language.
 ### Authentication and Authorization
 
 **Implementation:**
-- **Replit Auth** - OpenID Connect authentication supporting Google, GitHub, and email/password
+- **Passport Local Strategy** - Traditional email/password authentication with bcrypt password hashing
 - **Session Management** - PostgreSQL-backed sessions via connect-pg-simple for persistence across restarts
 - **Middleware** - isAuthenticated middleware protects all API routes, extracts userId from session
-- **User Model** - Users table stores profile data (email, firstName, lastName, profileImageUrl) from OAuth providers
+- **User Model** - Users table stores profile data (email, password (hashed), firstName, lastName)
 - **Data Isolation** - All AI models and conversations are filtered by userId, ensuring complete data isolation between users
 - **Frontend Auth** - useAuth hook checks authentication status, redirects to landing page if unauthenticated
 - **Bootstrap Sequence** - setupAuth called once at server startup (server/index.ts) to prevent middleware conflicts
 
 **Security Features:**
 - All API endpoints protected with authentication middleware
+- Passwords hashed using bcrypt (salt rounds: 10)
 - Session tokens stored securely in HTTP-only cookies
-- Automatic token refresh for long-lived sessions
+- 1-week session expiration with automatic cleanup
 - CSRF protection via session validation
 - User data scoped by userId to prevent unauthorized access
 

@@ -26,7 +26,9 @@ export default function Landing() {
         ? { email, password }
         : { email, password, firstName, lastName };
 
-      await apiRequest(endpoint, "POST", body);
+      console.log("Submitting to:", endpoint, "with body:", { ...body, password: "[REDACTED]" });
+      const response = await apiRequest("POST", endpoint, body);
+      console.log("Response received:", response.status);
       
       // Invalidate and refetch user data
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
@@ -34,6 +36,7 @@ export default function Landing() {
       // Reload the page to show authenticated app
       window.location.href = "/";
     } catch (error: any) {
+      console.error("Authentication error:", error);
       toast({
         title: "Error",
         description: error.message || "Authentication failed",
