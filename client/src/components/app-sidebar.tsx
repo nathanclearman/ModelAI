@@ -55,12 +55,12 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-xl">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground font-bold text-xl shadow-lg">
             AI
           </div>
           <div className="flex flex-col">
-            <span className="text-base font-semibold">ModelAI</span>
-            <span className="text-sm text-muted-foreground"> </span>
+            <span className="text-base font-semibold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">ModelAI</span>
+            <span className="text-sm text-muted-foreground">Powered by AI</span>
           </div>
         </div>
       </SidebarHeader>
@@ -87,7 +87,7 @@ export function AppSidebar() {
           <SidebarGroupLabel className="text-sm">Quick Actions</SidebarGroupLabel>
           <SidebarGroupContent>
             <Button 
-              className="w-full justify-start gap-2 py-6 text-base rounded-xl" 
+              className="w-full justify-start gap-2 py-6 text-base rounded-xl bg-gradient-to-r from-primary to-accent hover:shadow-lg hover:shadow-primary/20 transition-all duration-300" 
               onClick={() => setLocation("/chat/new")}
               data-testid="button-create-model"
             >
