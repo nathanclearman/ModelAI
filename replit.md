@@ -46,6 +46,18 @@ Preferred communication style: Simple, everyday language.
   - setupAuth initialized once at server bootstrap to prevent middleware conflicts
 - ✅ End-to-end tested and verified working
 
+**November 12, 2025:**
+- ✅ **My Models Page** - Complete model management interface
+  - View all user-created AI models in a grid layout
+  - ModelCard component showing model details (name, description, model type, temperature, conversation count)
+  - Search and filter models by name or description
+  - Start new conversations with existing models
+  - Edit model configurations
+  - Delete models with confirmation dialog
+  - Temperature display on proper 0-2 OpenAI scale (stored as 0-100 in DB, divided by 100 for display)
+  - Integrated into sidebar navigation
+  - End-to-end tested: create model → chat → save → view models → start new chat → resume from history
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -80,6 +92,7 @@ Preferred communication style: Simple, everyday language.
 **Key Pages:**
 - Landing - Public landing page with sign-in for unauthenticated users (displays app features and benefits)
 - Dashboard - Overview with stats and quick access to models and conversations (protected)
+- My Models - Grid view of all user AI models with search, start new chats, edit, and delete capabilities (protected)
 - Chat - Real-time streaming chat interface with AI models, API key warning for fine-tuned models (protected)
 - Import AI Models - Interface for importing fine-tuned models and uploaded pre-trained models (protected)
 - Templates - Gallery of pre-configured AI assistant templates (protected)
