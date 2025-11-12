@@ -66,6 +66,18 @@ Preferred communication style: Simple, everyday language.
   - Loading states and proper error handling with toast notifications
   - Changes persist across page refreshes
   - End-to-end tested: update profile → verify persistence → clear optional fields
+- ✅ **Admin Dashboard** - Platform administration interface accessible at /admin
+  - isAdmin field added to users table (integer, 0 = regular user, 1 = admin)
+  - Admin-only API endpoints: GET /api/admin/stats, GET /api/admin/users
+  - isAdmin middleware protecting admin routes (403 for non-admin access)
+  - Frontend authorization checks with useAuth hook exposing isAdmin flag
+  - Stats dashboard showing total users, AI models, and conversations
+  - Recent users section (last 5 registrations)
+  - All users list with admin badges
+  - Access denied page for non-admin users with "Back to Dashboard" button
+  - API queries disabled for non-admin users
+  - All passwords removed from admin API responses
+  - End-to-end tested: admin access → view stats, non-admin → access denied
 
 ## System Architecture
 
@@ -107,6 +119,7 @@ Preferred communication style: Simple, everyday language.
 - Templates - Gallery of pre-configured AI assistant templates (protected)
 - History - Conversation browsing, management, and export (individual or bulk) (protected)
 - Settings - Account preferences and OpenAI API key configuration (protected)
+- Admin Dashboard - Platform administration interface with user management and system statistics (protected, admin-only)
 
 ### Backend Architecture
 
@@ -130,6 +143,8 @@ Preferred communication style: Simple, everyday language.
 - `/api/conversations` - Conversation management (protected, filtered by userId)
 - `/api/conversations/:id` - Single conversation operations (protected, filtered by userId)
 - `/api/chat` - Streaming chat endpoint with async generators (protected)
+- `/api/admin/stats` - Admin dashboard statistics (protected, admin-only, returns totalUsers, totalModels, totalConversations, recentUsers)
+- `/api/admin/users` - Get all users (protected, admin-only, passwords excluded)
 - `/login` - Email/password login endpoint
 - `/register` - Email/password registration endpoint
 
@@ -146,7 +161,7 @@ Preferred communication style: Simple, everyday language.
 - Drizzle ORM for type-safe database queries and migrations
 
 **Schema Design:**
-- `users` table - User authentication and profile data (id, email, password, firstName, lastName, companyName, profileImageUrl, createdAt, updatedAt)
+- `users` table - User authentication and profile data (id, email, password, firstName, lastName, companyName, isAdmin, profileImageUrl, createdAt, updatedAt)
 - `sessions` table - Session storage for passport sessions (sid, sess, expire)
 - `ai_models` table - AI model configurations with system prompts, temperature, max tokens, userId foreign key
 - `conversations` table - Chat history stored as JSONB messages array, userId foreign key
@@ -166,10 +181,11 @@ Preferred communication style: Simple, everyday language.
 **Implementation:**
 - **Passport Local Strategy** - Traditional email/password authentication with bcrypt password hashing
 - **Session Management** - PostgreSQL-backed sessions via connect-pg-simple for persistence across restarts
-- **Middleware** - isAuthenticated middleware protects all API routes, extracts userId from session
-- **User Model** - Users table stores profile data (email, password (hashed), firstName, lastName)
+- **Middleware** - isAuthenticated middleware protects all API routes, isAdmin middleware protects admin routes
+- **User Model** - Users table stores profile data (email, password (hashed), firstName, lastName, isAdmin)
 - **Data Isolation** - All AI models and conversations are filtered by userId, ensuring complete data isolation between users
-- **Frontend Auth** - useAuth hook checks authentication status, redirects to landing page if unauthenticated
+- **Admin Authorization** - isAdmin middleware checks if user.isAdmin === 1, returns 403 for non-admin access
+- **Frontend Auth** - useAuth hook checks authentication status and admin role, shows access denied for non-admin users on /admin
 - **Bootstrap Sequence** - setupAuth called once at server startup (server/index.ts) to prevent middleware conflicts
 
 **Security Features:**
