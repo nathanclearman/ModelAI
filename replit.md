@@ -23,7 +23,10 @@ The platform includes:
 - **Conversation Management:** Real-time streaming chat, conversation history, and export capabilities.
 - **Templates:** Pre-configured AI assistant templates for various use cases.
 - **User Settings:** Account information management and personal OpenAI API key configuration.
-- **Admin Dashboard:** Statistics, user management, and the ability to grant/revoke admin privileges.
+- **Admin Dashboard:** Statistics, user management, ability to grant/revoke admin privileges, and view/export user conversations.
+  - Auto-admin: fransantbrid@anglernook.com is automatically promoted to admin on registration
+  - User conversation viewing: Click "View Conversations" to see all conversations for any user
+  - Conversation export: Export individual conversations or all conversations at once in JSONL format
 
 ### System Design Choices
 - **Full-Stack TypeScript:** Ensures type safety across both frontend and backend.
