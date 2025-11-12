@@ -50,6 +50,7 @@ export interface IStorage {
     totalConversations: number;
     recentUsers: User[];
   }>;
+  updateUserAdminStatus(userId: string, isAdmin: number): Promise<User | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -208,6 +209,15 @@ export class DatabaseStorage implements IStorage {
       totalConversations: allConversations.length,
       recentUsers,
     };
+  }
+
+  async updateUserAdminStatus(userId: string, isAdmin: number): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({ isAdmin, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
   }
 }
 
