@@ -137,11 +137,17 @@ export default function History() {
 
   return (
     <div className="space-y-16">
-      <div className="py-12">
-        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Conversation History</h1>
-        <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-          View and manage your past AI conversations
-        </p>
+      <div className="relative py-12 px-8 -mx-8 rounded-2xl bg-muted/30 overflow-hidden border border-border/50">
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl"></div>
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-accent/10 text-accent-foreground text-sm font-medium mb-5">
+            <span>{conversations.length} Conversation{conversations.length !== 1 ? "s" : ""}</span>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">History</h1>
+          <p className="text-lg text-muted-foreground max-w-2xl">
+            View and manage your conversation history
+          </p>
+        </div>
       </div>
 
       <div className="space-y-4">
