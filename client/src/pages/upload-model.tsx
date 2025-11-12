@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModelUploadCard } from "@/components/model-upload-card";
 import { FineTunedImport } from "@/components/fine-tuned-import";
+import { ModelConfigImport } from "@/components/model-config-import";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Info, CheckCircle2 } from "lucide-react";
@@ -40,8 +41,11 @@ export default function UploadModel() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="fine-tuned" className="space-y-6">
+      <Tabs defaultValue="config" className="space-y-6">
         <TabsList>
+          <TabsTrigger value="config" data-testid="tab-config">
+            Import Configuration
+          </TabsTrigger>
           <TabsTrigger value="fine-tuned" data-testid="tab-fine-tuned">
             Fine-Tuned Models
           </TabsTrigger>
@@ -52,6 +56,10 @@ export default function UploadModel() {
             Imported Models ({uploadedModels.length})
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="config" className="space-y-6">
+          <ModelConfigImport />
+        </TabsContent>
 
         <TabsContent value="fine-tuned" className="space-y-6">
           <FineTunedImport />
