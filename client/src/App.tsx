@@ -16,6 +16,7 @@ import UploadModel from "@/pages/upload-model";
 import Templates from "@/pages/templates";
 import History from "@/pages/history";
 import Settings from "@/pages/settings";
+import Admin from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -45,6 +46,7 @@ function Router() {
       <Route path="/templates" component={Templates} />
       <Route path="/history" component={History} />
       <Route path="/settings" component={Settings} />
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );

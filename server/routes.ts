@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, type Message } from "@shared/schema";
 import OpenAI from "openai";
-import { isAuthenticated } from "./auth";
+import { isAuthenticated, isAdmin } from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -309,6 +309,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error in chat:", error);
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
+    }
+  });
+
+  // Admin Routes (protected by isAdmin middleware)
+  app.get('/api/admin/stats', isAdmin, async (req: any, res) => {
+    try {
+      const stats = await storage.getAdminStats();
+      
+      // Remove passwords from recent users
+      const sanitizedStats = {
+        ...stats,
+        recentUsers: stats.recentUsers.map(user => {
+          const { password, ...userWithoutPassword } = user;
+          return userWithoutPassword;
+        }),
+      };
+      
+      res.json(sanitizedStats);
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ message: "Failed to fetch admin statistics" });
+    }
+  });
+
+  app.get('/api/admin/users', isAdmin, async (req: any, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      
+      // Remove passwords from user data
+      const sanitizedUsers = users.map(user => {
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      });
+      
+      res.json(sanitizedUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
     }
   });
 

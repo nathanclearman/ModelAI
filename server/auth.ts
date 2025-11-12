@@ -153,3 +153,10 @@ export const isAuthenticated: RequestHandler = (req, res, next) => {
   }
   res.status(401).json({ message: "Unauthorized" });
 };
+
+export const isAdmin: RequestHandler = (req: any, res, next) => {
+  if (req.isAuthenticated() && req.user?.isAdmin === 1) {
+    return next();
+  }
+  res.status(403).json({ message: "Forbidden: Admin access required" });
+};

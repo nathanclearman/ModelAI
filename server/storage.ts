@@ -41,6 +41,15 @@ export interface IStorage {
   getConversationsByModel(userId: string, modelId: string): Promise<Conversation[]>;
   updateConversation(userId: string, id: string, conversation: Partial<InsertConversation>): Promise<Conversation | undefined>;
   deleteConversation(userId: string, id: string): Promise<boolean>;
+  
+  // Admin methods
+  getAllUsers(): Promise<User[]>;
+  getAdminStats(): Promise<{
+    totalUsers: number;
+    totalModels: number;
+    totalConversations: number;
+    recentUsers: User[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -168,6 +177,37 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  // Admin methods
+  async getAllUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt));
+  }
+
+  async getAdminStats(): Promise<{
+    totalUsers: number;
+    totalModels: number;
+    totalConversations: number;
+    recentUsers: User[];
+  }> {
+    const allUsers = await db.select().from(users);
+    const allModels = await db.select().from(aiModels);
+    const allConversations = await db.select().from(conversations);
+    const recentUsers = await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt))
+      .limit(5);
+
+    return {
+      totalUsers: allUsers.length,
+      totalModels: allModels.length,
+      totalConversations: allConversations.length,
+      recentUsers,
+    };
   }
 }
 

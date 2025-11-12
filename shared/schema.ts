@@ -23,6 +23,7 @@ export const users = pgTable("users", {
   lastName: varchar("last_name"),
   companyName: varchar("company_name"),
   profileImageUrl: varchar("profile_image_url"),
+  isAdmin: integer("is_admin").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
