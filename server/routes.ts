@@ -447,6 +447,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Marketplace API endpoints
+  app.get('/api/marketplace/models', isAuthenticated, async (req: any, res) => {
+    try {
+      const models = await storage.getPublicModels();
+      res.json(models);
+    } catch (error) {
+      console.error("Error fetching public models:", error);
+      res.status(500).json({ message: "Failed to fetch marketplace models" });
+    }
+  });
+
+  app.post('/api/marketplace/models/:modelId/like', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { modelId } = req.params;
+      
+      const liked = await storage.likeModel(userId, modelId);
+      if (liked) {
+        res.json({ success: true, message: "Model liked" });
+      } else {
+        res.status(400).json({ message: "Model already liked" });
+      }
+    } catch (error) {
+      console.error("Error liking model:", error);
+      res.status(500).json({ message: "Failed to like model" });
+    }
+  });
+
+  app.delete('/api/marketplace/models/:modelId/like', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { modelId } = req.params;
+      
+      const unliked = await storage.unlikeModel(userId, modelId);
+      if (unliked) {
+        res.json({ success: true, message: "Model unliked" });
+      } else {
+        res.status(400).json({ message: "Model not liked" });
+      }
+    } catch (error) {
+      console.error("Error unliking model:", error);
+      res.status(500).json({ message: "Failed to unlike model" });
+    }
+  });
+
+  app.get('/api/marketplace/models/:modelId/liked', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { modelId } = req.params;
+      
+      const liked = await storage.isModelLiked(userId, modelId);
+      res.json({ liked });
+    } catch (error) {
+      console.error("Error checking if model is liked:", error);
+      res.status(500).json({ message: "Failed to check like status" });
+    }
+  });
+
+  app.post('/api/marketplace/models/:modelId/clone', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { modelId } = req.params;
+      
+      const clonedModel = await storage.cloneModel(userId, modelId);
+      res.status(201).json(clonedModel);
+    } catch (error: any) {
+      console.error("Error cloning model:", error);
+      res.status(400).json({ message: error.message || "Failed to clone model" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

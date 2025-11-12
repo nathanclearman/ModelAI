@@ -50,6 +50,11 @@ export const aiModels = pgTable("ai_models", {
   temperature: integer("temperature").notNull().default(70),
   maxTokens: integer("max_tokens").notNull().default(1000),
   template: text("template"),
+  isPublic: integer("is_public").notNull().default(0),
+  category: text("category"),
+  tags: text("tags").array(),
+  likesCount: integer("likes_count").notNull().default(0),
+  usageCount: integer("usage_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -105,3 +110,13 @@ export const usageLogs = pgTable("usage_logs", {
 
 export type UsageLog = typeof usageLogs.$inferSelect;
 export type InsertUsageLog = typeof usageLogs.$inferInsert;
+
+// Model likes table for marketplace
+export const modelLikes = pgTable("model_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  modelId: varchar("model_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ModelLike = typeof modelLikes.$inferSelect;

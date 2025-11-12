@@ -1,4 +1,4 @@
-import { Home, Layers, History, Settings, Plus, Upload, BookTemplate, Zap } from "lucide-react";
+import { Home, Layers, History, Settings, Plus, Upload, BookTemplate, Zap, Store } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -25,6 +25,11 @@ const menuItems = [
     title: "My Models",
     url: "/models",
     icon: Layers,
+  },
+  {
+    title: "Marketplace",
+    url: "/marketplace",
+    icon: Store,
   },
   {
     title: "Upload Model",

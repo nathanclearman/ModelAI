@@ -7,6 +7,7 @@ import {
   aiModels,
   conversations,
   usageLogs,
+  modelLikes,
   type User,
   type UpsertUser,
   type AIModel,
@@ -15,6 +16,7 @@ import {
   type InsertConversation,
   type UsageLog,
   type InsertUsageLog,
+  type ModelLike,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -58,6 +60,13 @@ export interface IStorage {
     totalConversations: number;
     averageTokensPerConversation: number;
   }>;
+  
+  // Marketplace methods
+  getPublicModels(category?: string, tags?: string[]): Promise<Array<AIModel & { creatorName: string }>>;
+  likeModel(userId: string, modelId: string): Promise<boolean>;
+  unlikeModel(userId: string, modelId: string): Promise<boolean>;
+  isModelLiked(userId: string, modelId: string): Promise<boolean>;
+  cloneModel(userId: string, modelId: string): Promise<AIModel>;
   
   // Admin methods
   getAllUsers(): Promise<User[]>;
@@ -292,6 +301,114 @@ export class DatabaseStorage implements IStorage {
       totalConversations,
       averageTokensPerConversation,
     };
+  }
+
+  // Marketplace methods
+  async getPublicModels(category?: string, tags?: string[]): Promise<Array<AIModel & { creatorName: string }>> {
+    let query = db
+      .select({
+        model: aiModels,
+        user: users,
+      })
+      .from(aiModels)
+      .leftJoin(users, eq(aiModels.userId, users.id))
+      .where(eq(aiModels.isPublic, 1))
+      .orderBy(desc(aiModels.likesCount), desc(aiModels.createdAt));
+
+    const results = await query;
+    
+    return results.map(row => ({
+      ...row.model,
+      creatorName: row.user ? `${row.user.firstName || ''} ${row.user.lastName || ''}`.trim() || row.user.email.split('@')[0] : 'Unknown',
+    }));
+  }
+
+  async likeModel(userId: string, modelId: string): Promise<boolean> {
+    // Check if already liked
+    const existing = await db
+      .select()
+      .from(modelLikes)
+      .where(and(eq(modelLikes.userId, userId), eq(modelLikes.modelId, modelId)));
+
+    if (existing.length > 0) {
+      return false; // Already liked
+    }
+
+    // Add like
+    await db.insert(modelLikes).values({ userId, modelId });
+
+    // Increment likes count
+    await db
+      .update(aiModels)
+      .set({ likesCount: drizzleSql`${aiModels.likesCount} + 1` })
+      .where(eq(aiModels.id, modelId));
+
+    return true;
+  }
+
+  async unlikeModel(userId: string, modelId: string): Promise<boolean> {
+    const result = await db
+      .delete(modelLikes)
+      .where(and(eq(modelLikes.userId, userId), eq(modelLikes.modelId, modelId)))
+      .returning();
+
+    if (result.length > 0) {
+      // Decrement likes count
+      await db
+        .update(aiModels)
+        .set({ likesCount: drizzleSql`${aiModels.likesCount} - 1` })
+        .where(eq(aiModels.id, modelId));
+      return true;
+    }
+
+    return false;
+  }
+
+  async isModelLiked(userId: string, modelId: string): Promise<boolean> {
+    const result = await db
+      .select()
+      .from(modelLikes)
+      .where(and(eq(modelLikes.userId, userId), eq(modelLikes.modelId, modelId)));
+
+    return result.length > 0;
+  }
+
+  async cloneModel(userId: string, modelId: string): Promise<AIModel> {
+    // Get the original model (must be public)
+    const [original] = await db
+      .select()
+      .from(aiModels)
+      .where(and(eq(aiModels.id, modelId), eq(aiModels.isPublic, 1)));
+
+    if (!original) {
+      throw new Error("Model not found or not public");
+    }
+
+    // Increment usage count on original
+    await db
+      .update(aiModels)
+      .set({ usageCount: drizzleSql`${aiModels.usageCount} + 1` })
+      .where(eq(aiModels.id, modelId));
+
+    // Create clone for the user
+    const [cloned] = await db
+      .insert(aiModels)
+      .values({
+        userId,
+        name: `${original.name} (Clone)`,
+        description: original.description,
+        systemPrompt: original.systemPrompt,
+        model: original.model,
+        temperature: original.temperature,
+        maxTokens: original.maxTokens,
+        template: original.template,
+        category: original.category,
+        tags: original.tags,
+        isPublic: 0, // Clones are private by default
+      })
+      .returning();
+
+    return cloned;
   }
 
   // Admin methods

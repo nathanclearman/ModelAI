@@ -18,6 +18,7 @@ import Templates from "@/pages/templates";
 import History from "@/pages/history";
 import Settings from "@/pages/settings";
 import Admin from "@/pages/admin";
+import Marketplace from "@/pages/marketplace";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/models" component={Models} />
       <Route path="/chat/:modelId/:conversationId?" component={Chat} />
       <Route path="/upload" component={UploadModel} />
+      <Route path="/marketplace" component={Marketplace} />
       <Route path="/templates" component={Templates} />
       <Route path="/history" component={History} />
       <Route path="/settings" component={Settings} />
