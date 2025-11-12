@@ -25,6 +25,16 @@ The platform includes:
   - Logout functionality to switch between accounts
   - All user data automatically saved and isolated per account
 - **AI Model Management:** Create, view, edit, and delete AI models with custom prompts and parameters.
+  - Model export/import in JSON format for backup and sharing
+  - Public/private visibility toggle for marketplace sharing
+  - Category and tag organization for discovery
+- **Model Marketplace:** Discover, like, and clone AI models shared by the community.
+  - Browse public models from all users
+  - Search and filter by name, description, category
+  - Like models to show appreciation
+  - Clone models to your account with one click
+  - Models ranked by popularity (likes and usage)
+  - Community engagement with usage statistics
 - **Conversation Management:** Real-time streaming chat, conversation history, and export capabilities.
 - **Templates:** Pre-configured AI assistant templates for various use cases.
 - **User Settings:** Account information management and personal OpenAI API key configuration.

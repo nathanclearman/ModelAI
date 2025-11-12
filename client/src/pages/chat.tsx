@@ -128,6 +128,9 @@ export default function Chat() {
           model: config.model,
           temperature: config.temperature,
           maxTokens: config.maxTokens,
+          isPublic: config.isPublic,
+          category: config.category,
+          tags: config.tags,
         });
       } else {
         return createModel({
@@ -137,6 +140,9 @@ export default function Chat() {
           model: config.model,
           temperature: config.temperature,
           maxTokens: config.maxTokens,
+          isPublic: config.isPublic,
+          category: config.category,
+          tags: config.tags,
         });
       }
     },

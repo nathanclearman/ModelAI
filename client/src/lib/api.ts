@@ -8,6 +8,9 @@ export async function createModel(data: {
   temperature: number;
   maxTokens: number;
   template?: string;
+  isPublic?: number;
+  category?: string;
+  tags?: string[];
 }): Promise<AIModel> {
   const response = await fetch("/api/models", {
     method: "POST",
