@@ -21,6 +21,7 @@ export const users = pgTable("users", {
   password: varchar("password").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
+  companyName: varchar("company_name"),
   profileImageUrl: varchar("profile_image_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -28,6 +29,15 @@ export const users = pgTable("users", {
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Update user profile schema (only allows updating specific fields)
+export const updateUserProfileSchema = z.object({
+  firstName: z.string().optional().nullable(),
+  lastName: z.string().optional().nullable(),
+  companyName: z.string().optional().nullable(),
+});
+
+export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 
 export const aiModels = pgTable("ai_models", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

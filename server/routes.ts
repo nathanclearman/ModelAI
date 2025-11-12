@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertAIModelSchema, insertConversationSchema, type Message } from "@shared/schema";
+import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, type Message } from "@shared/schema";
 import OpenAI from "openai";
 import { isAuthenticated } from "./auth";
 
@@ -14,6 +14,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Update user profile
+  app.patch('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      
+      // Validate request body with Zod
+      const validatedData = updateUserProfileSchema.parse(req.body);
+      
+      const updatedUser = await storage.updateUser(userId, validatedData);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Remove password from response for security
+      const { password, ...userWithoutPassword } = updatedUser;
+      
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid user data", details: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update user" });
     }
   });
 

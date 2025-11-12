@@ -8,6 +8,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Key, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { type User } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Settings() {
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -17,6 +20,37 @@ export default function Settings() {
   const [isApiKeySet, setIsApiKeySet] = useState(false);
   const { toast } = useToast();
 
+  // Account information state
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+
+  // Fetch current user data
+  const { data: user, isLoading: isLoadingUser } = useQuery<User>({
+    queryKey: ["/api/auth/user"],
+  });
+
+  // Update account information mutation
+  const updateUserMutation = useMutation({
+    mutationFn: async (data: { firstName: string; lastName: string; companyName: string }) => {
+      return await apiRequest("PATCH", "/api/auth/user", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({
+        title: "Success",
+        description: "Account information updated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update account information",
+      });
+    },
+  });
+
   useEffect(() => {
     const savedKey = sessionStorage.getItem("openai_api_key");
     if (savedKey) {
@@ -24,6 +58,15 @@ export default function Settings() {
       setIsApiKeySet(true);
     }
   }, []);
+
+  // Pre-fill account information when user data is loaded
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName || "");
+      setLastName(user.lastName || "");
+      setCompanyName(user.companyName || "");
+    }
+  }, [user]);
 
   const handleSaveApiKey = () => {
     if (!apiKey.trim()) {
@@ -62,6 +105,10 @@ export default function Settings() {
     });
   };
 
+  const handleSaveAccountInfo = () => {
+    updateUserMutation.mutate({ firstName, lastName, companyName });
+  };
+
   return (
     <div className="space-y-16">
       <div className="py-12">
@@ -77,35 +124,66 @@ export default function Settings() {
           <CardDescription>Update your account details</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              placeholder="John Doe"
-              defaultValue="John Doe"
-              data-testid="input-name"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="john@example.com"
-              defaultValue="john@example.com"
-              data-testid="input-email"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="company">Company</Label>
-            <Input
-              id="company"
-              placeholder="Acme Corp"
-              defaultValue="Acme Corp"
-              data-testid="input-company"
-            />
-          </div>
-          <Button data-testid="button-save-account">Save Changes</Button>
+          {isLoadingUser ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="inline-block h-6 w-6 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={user?.email || ""}
+                  disabled
+                  data-testid="input-email"
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  placeholder="John"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  disabled={updateUserMutation.isPending}
+                  data-testid="input-first-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  placeholder="Doe"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  disabled={updateUserMutation.isPending}
+                  data-testid="input-last-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="company">Company Name (Optional)</Label>
+                <Input
+                  id="company"
+                  placeholder="Enter your company name"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  disabled={updateUserMutation.isPending}
+                  data-testid="input-company"
+                />
+              </div>
+              <Button 
+                onClick={handleSaveAccountInfo}
+                disabled={updateUserMutation.isPending || isLoadingUser}
+                data-testid="button-save-account"
+              >
+                {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
 
