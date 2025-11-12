@@ -62,8 +62,8 @@ export function AppSidebar() {
             </div>
           </div>
           <div className="flex flex-col">
-            <span className="text-base font-semibold tracking-tight">ModelHub</span>
-            <span className="text-xs text-muted-foreground">AI Platform</span>
+            <span className="text-base font-semibold tracking-tight">ModelAI</span>
+            <span className="text-xs text-muted-foreground"></span>
           </div>
         </div>
       </SidebarHeader>

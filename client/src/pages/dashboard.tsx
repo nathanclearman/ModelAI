@@ -166,9 +166,9 @@ export default function Dashboard() {
         <CardContent className="p-10">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
-              <h3 className="text-2xl font-semibold mb-2 tracking-tight">Build Your Custom Model</h3>
+              <h3 className="text-2xl font-semibold mb-2 tracking-tight">Build a Custom Model</h3>
               <p className="text-base text-muted-foreground max-w-2xl">
-                Create an AI assistant tailored to your specific needs
+                Create an assistant tailored to your needs
               </p>
             </div>
             <Button

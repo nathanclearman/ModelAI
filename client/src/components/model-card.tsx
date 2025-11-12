@@ -1,7 +1,14 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Settings, Trash2, Sparkles } from "lucide-react";
+import { MessageSquare, Settings, Trash2, Sparkles, Download } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreVertical } from "lucide-react";
 
 interface ModelCardProps {
   name: string;
@@ -12,6 +19,7 @@ interface ModelCardProps {
   onStartChat?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onExport?: () => void;
 }
 
 export function ModelCard({
@@ -23,6 +31,7 @@ export function ModelCard({
   onStartChat,
   onEdit,
   onDelete,
+  onExport,
 }: ModelCardProps) {
   return (
     <Card className="hover-elevate transition-all">
@@ -57,7 +66,7 @@ export function ModelCard({
         
         <div className="flex items-center gap-2">
           <Button
-            className="flex-1 gap-2 rounded-xl"
+            className="flex-1 gap-2"
             onClick={(e) => {
               e.stopPropagation();
               onStartChat?.();
@@ -65,30 +74,52 @@ export function ModelCard({
             data-testid="button-start-chat"
           >
             <MessageSquare className="h-4 w-4" />
-            Start New Chat
+            Start Chat
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit?.();
-            }}
-            data-testid="button-edit-model"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete?.();
-            }}
-            data-testid="button-delete-model"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                data-testid="button-model-menu"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit?.();
+                }}
+                data-testid="menu-edit-model"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExport?.();
+                }}
+                data-testid="menu-export-model"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete?.();
+                }}
+                className="text-destructive"
+                data-testid="menu-delete-model"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardContent>
     </Card>

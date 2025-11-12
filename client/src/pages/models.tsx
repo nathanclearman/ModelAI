@@ -1,7 +1,7 @@
 import { ModelCard } from "@/components/model-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Download } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { type AIModel, type Conversation } from "@shared/schema";
@@ -9,6 +9,7 @@ import { deleteModel } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { exportModels } from "@/lib/export";
 
 export default function Models() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,6 +49,31 @@ export default function Models() {
     }
   };
 
+  const handleExportModel = (model: AIModel) => {
+    exportModels([model]);
+    toast({
+      title: "Success",
+      description: `Exported "${model.name}"`,
+    });
+  };
+
+  const handleExportAllModels = () => {
+    if (models.length === 0) {
+      toast({
+        title: "No Models",
+        description: "Create models to export them",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    exportModels(models);
+    toast({
+      title: "Success",
+      description: `Exported ${models.length} model${models.length > 1 ? "s" : ""}`,
+    });
+  };
+
   const filteredModels = models.filter((model) =>
     model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (model.description || "").toLowerCase().includes(searchQuery.toLowerCase())
@@ -79,15 +105,29 @@ export default function Models() {
             data-testid="input-search-models"
           />
         </div>
-        <Button
-          size="lg"
-          className="gap-2"
-          onClick={() => setLocation("/chat/new")}
-          data-testid="button-create-new-model"
-        >
-          <Plus className="h-5 w-5" />
-          New Model
-        </Button>
+        <div className="flex gap-2">
+          {models.length > 0 && (
+            <Button
+              variant="outline"
+              size="lg"
+              className="gap-2"
+              onClick={handleExportAllModels}
+              data-testid="button-export-all-models"
+            >
+              <Download className="h-5 w-5" />
+              Export All
+            </Button>
+          )}
+          <Button
+            size="lg"
+            className="gap-2"
+            onClick={() => setLocation("/chat/new")}
+            data-testid="button-create-new-model"
+          >
+            <Plus className="h-5 w-5" />
+            New Model
+          </Button>
+        </div>
       </div>
 
       {filteredModels.length === 0 ? (
@@ -128,6 +168,7 @@ export default function Models() {
               onStartChat={() => setLocation(`/chat/${model.id}`)}
               onEdit={() => setLocation(`/chat/${model.id}`)}
               onDelete={() => handleDeleteModel(model.id, model.name)}
+              onExport={() => handleExportModel(model)}
             />
           ))}
         </div>
