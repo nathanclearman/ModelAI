@@ -5,6 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 import { useState } from "react";
 
 interface ModelConfigPanelProps {
@@ -18,6 +21,9 @@ export interface ModelConfig {
   temperature: number;
   maxTokens: number;
   systemPrompt: string;
+  isPublic?: number;
+  category?: string;
+  tags?: string[];
 }
 
 const modelOptions = [
@@ -34,7 +40,11 @@ export function ModelConfigPanel({ onSave, initialConfig }: ModelConfigPanelProp
     temperature: initialConfig?.temperature || 70,
     maxTokens: initialConfig?.maxTokens || 1000,
     systemPrompt: initialConfig?.systemPrompt || "",
+    isPublic: initialConfig?.isPublic || 0,
+    category: initialConfig?.category || "",
+    tags: initialConfig?.tags || [],
   });
+  const [tagInput, setTagInput] = useState("");
 
   const handleSave = () => {
     console.log("Saving config:", config);
@@ -146,6 +156,116 @@ export function ModelConfigPanel({ onSave, initialConfig }: ModelConfigPanelProp
           <p className="text-xs text-muted-foreground">
             Instructions that guide how the AI responds
           </p>
+        </div>
+
+        <div className="pt-4 border-t">
+          <h3 className="font-semibold mb-4">Marketplace Sharing</h3>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="public-toggle">Share to Marketplace</Label>
+                <p className="text-xs text-muted-foreground">
+                  Make this model discoverable by others
+                </p>
+              </div>
+              <Switch
+                id="public-toggle"
+                checked={config.isPublic === 1}
+                onCheckedChange={(checked) => setConfig({ ...config, isPublic: checked ? 1 : 0 })}
+                data-testid="switch-public"
+              />
+            </div>
+
+            {config.isPublic === 1 && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Select
+                    value={config.category || ""}
+                    onValueChange={(value) => setConfig({ ...config, category: value })}
+                  >
+                    <SelectTrigger id="category" data-testid="select-category">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Customer Support">Customer Support</SelectItem>
+                      <SelectItem value="Content Creation">Content Creation</SelectItem>
+                      <SelectItem value="Data Analysis">Data Analysis</SelectItem>
+                      <SelectItem value="Education">Education</SelectItem>
+                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="Development">Development</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="tags">Tags</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="tags"
+                      placeholder="Add a tag..."
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && tagInput.trim()) {
+                          e.preventDefault();
+                          if (!config.tags?.includes(tagInput.trim())) {
+                            setConfig({ 
+                              ...config, 
+                              tags: [...(config.tags || []), tagInput.trim()] 
+                            });
+                          }
+                          setTagInput("");
+                        }
+                      }}
+                      data-testid="input-tags"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (tagInput.trim() && !config.tags?.includes(tagInput.trim())) {
+                          setConfig({ 
+                            ...config, 
+                            tags: [...(config.tags || []), tagInput.trim()] 
+                          });
+                          setTagInput("");
+                        }
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  {config.tags && config.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {config.tags.map((tag, index) => (
+                        <Badge key={index} variant="secondary" className="gap-1">
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfig({ 
+                                ...config, 
+                                tags: config.tags?.filter((_, i) => i !== index) 
+                              });
+                            }}
+                            className="ml-1 hover-elevate"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Press Enter or click Add to add tags
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2">
