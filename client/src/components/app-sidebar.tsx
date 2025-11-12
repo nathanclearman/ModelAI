@@ -108,7 +108,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-6">
         <div className="text-xs text-muted-foreground/60">
-          © 2025 ModelHub
+          © 2025 ModelAI. All rights reserved.
         </div>
       </SidebarFooter>
     </Sidebar>

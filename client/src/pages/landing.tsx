@@ -62,7 +62,7 @@ export default function Landing() {
           </div>
           <div>
             <CardTitle className="text-3xl font-bold tracking-tight mb-2">
-              Welcome to ModelHub
+              ModelAI
             </CardTitle>
             <CardDescription className="text-base">
               {isLogin ? "Sign in to continue" : "Create your account"}
