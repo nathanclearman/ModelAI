@@ -142,6 +142,10 @@ export const insertWorkspaceSchema = createInsertSchema(workspaces).omit({
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
 export type Workspace = typeof workspaces.$inferSelect;
 
+// Workspace member roles enum
+export const workspaceRoles = ["owner", "admin", "editor", "viewer"] as const;
+export type WorkspaceRole = typeof workspaceRoles[number];
+
 // Workspace members with role-based access
 export const workspaceMembers = pgTable("workspace_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -154,6 +158,8 @@ export const workspaceMembers = pgTable("workspace_members", {
 export const insertWorkspaceMemberSchema = createInsertSchema(workspaceMembers).omit({
   id: true,
   createdAt: true,
+}).extend({
+  role: z.enum(workspaceRoles),
 });
 
 export type InsertWorkspaceMember = z.infer<typeof insertWorkspaceMemberSchema>;

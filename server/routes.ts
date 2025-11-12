@@ -1,9 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, type Message } from "@shared/schema";
+import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, insertWorkspaceSchema, insertWorkspaceMemberSchema, insertApiKeySchema, workspaceRoles, type Message } from "@shared/schema";
 import OpenAI from "openai";
 import { isAuthenticated, isAdmin } from "./auth";
+import { generateApiKey, hashApiKey } from "./utils/apiKey";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -515,6 +516,340 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error cloning model:", error);
       res.status(400).json({ message: error.message || "Failed to clone model" });
+    }
+  });
+
+  // API Keys routes
+  app.get('/api/keys', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const keys = await storage.getUserApiKeys(userId);
+      // Don't send the full key in list response, only last 4 chars
+      const maskedKeys = keys.map(k => ({
+        ...k,
+        key: `...${k.key.slice(-4)}`
+      }));
+      res.json(maskedKeys);
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+      res.status(500).json({ message: "Failed to fetch API keys" });
+    }
+  });
+
+  app.post('/api/keys', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const validatedData = insertApiKeySchema.parse(req.body);
+      
+      const { key, hashedKey } = generateApiKey();
+      const apiKey = await storage.createApiKey(userId, { ...validatedData, key: hashedKey });
+      
+      // Return the full key ONLY this one time (it won't be stored)
+      res.status(201).json({ ...apiKey, key });
+    } catch (error: any) {
+      console.error("Error creating API key:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create API key" });
+    }
+  });
+
+  app.delete('/api/keys/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const deleted = await storage.deleteApiKey(userId, req.params.id);
+      
+      if (deleted) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "API key not found" });
+      }
+    } catch (error) {
+      console.error("Error deleting API key:", error);
+      res.status(500).json({ message: "Failed to delete API key" });
+    }
+  });
+
+  // Workspace routes
+  app.get('/api/workspaces', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workspaces = await storage.getUserWorkspaces(userId);
+      res.json(workspaces);
+    } catch (error) {
+      console.error("Error fetching workspaces:", error);
+      res.status(500).json({ message: "Failed to fetch workspaces" });
+    }
+  });
+
+  app.post('/api/workspaces', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const validatedData = insertWorkspaceSchema.parse(req.body);
+      
+      const workspace = await storage.createWorkspace(userId, validatedData);
+      res.status(201).json(workspace);
+    } catch (error: any) {
+      console.error("Error creating workspace:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create workspace" });
+    }
+  });
+
+  app.get('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workspace = await storage.getWorkspace(req.params.id);
+      
+      if (!workspace) {
+        return res.status(404).json({ message: "Workspace not found" });
+      }
+      
+      // Check if user has access to this workspace
+      const role = await storage.getUserWorkspaceRole(userId, workspace.id);
+      if (!role) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      res.json(workspace);
+    } catch (error) {
+      console.error("Error fetching workspace:", error);
+      res.status(500).json({ message: "Failed to fetch workspace" });
+    }
+  });
+
+  app.patch('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workspace = await storage.getWorkspace(req.params.id);
+      
+      if (!workspace) {
+        return res.status(404).json({ message: "Workspace not found" });
+      }
+      
+      // Check if user is owner or admin
+      const role = await storage.getUserWorkspaceRole(userId, workspace.id);
+      if (role !== "owner" && role !== "admin") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const validatedData = insertWorkspaceSchema.partial().parse(req.body);
+      const updated = await storage.updateWorkspace(workspace.id, validatedData);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating workspace:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update workspace" });
+    }
+  });
+
+  app.delete('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workspace = await storage.getWorkspace(req.params.id);
+      
+      if (!workspace) {
+        return res.status(404).json({ message: "Workspace not found" });
+      }
+      
+      // Only owner can delete
+      if (workspace.ownerId !== userId) {
+        return res.status(403).json({ message: "Only the owner can delete this workspace" });
+      }
+      
+      const deleted = await storage.deleteWorkspace(workspace.id);
+      if (deleted) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Workspace not found" });
+      }
+    } catch (error) {
+      console.error("Error deleting workspace:", error);
+      res.status(500).json({ message: "Failed to delete workspace" });
+    }
+  });
+
+  // Workspace member routes
+  app.get('/api/workspaces/:id/members', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      
+      // Check if user has access to this workspace
+      const role = await storage.getUserWorkspaceRole(userId, req.params.id);
+      if (!role) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const members = await storage.getWorkspaceMembers(req.params.id);
+      res.json(members);
+    } catch (error) {
+      console.error("Error fetching workspace members:", error);
+      res.status(500).json({ message: "Failed to fetch workspace members" });
+    }
+  });
+
+  app.post('/api/workspaces/:id/members', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workspaceId = req.params.id;
+      
+      // Check if user is owner or admin
+      const role = await storage.getUserWorkspaceRole(userId, workspaceId);
+      if (role !== "owner" && role !== "admin") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const validatedData = insertWorkspaceMemberSchema.parse({
+        ...req.body,
+        workspaceId
+      });
+      
+      const member = await storage.addWorkspaceMember(validatedData);
+      res.status(201).json(member);
+    } catch (error: any) {
+      console.error("Error adding workspace member:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      res.status(500).json({ message: "Failed to add workspace member" });
+    }
+  });
+
+  app.patch('/api/workspaces/:id/members/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const requesterId = req.user.id;
+      const { id: workspaceId, userId: targetUserId } = req.params;
+      
+      // Check if requester is owner or admin
+      const role = await storage.getUserWorkspaceRole(requesterId, workspaceId);
+      if (role !== "owner" && role !== "admin") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Validate new role
+      const { role: newRole } = req.body;
+      if (!workspaceRoles.includes(newRole)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+      
+      // Prevent changing owner role unless you're the owner
+      if (newRole === "owner" && role !== "owner") {
+        return res.status(403).json({ message: "Only owner can assign owner role" });
+      }
+      
+      const updated = await storage.updateWorkspaceMemberRole(workspaceId, targetUserId, newRole);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating workspace member:", error);
+      res.status(500).json({ message: "Failed to update workspace member" });
+    }
+  });
+
+  app.delete('/api/workspaces/:id/members/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const requesterId = req.user.id;
+      const { id: workspaceId, userId: targetUserId } = req.params;
+      
+      // Check if requester is owner or admin (or removing themselves)
+      const role = await storage.getUserWorkspaceRole(requesterId, workspaceId);
+      if (requesterId !== targetUserId && role !== "owner" && role !== "admin") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const removed = await storage.removeWorkspaceMember(workspaceId, targetUserId);
+      if (removed) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Member not found" });
+      }
+    } catch (error) {
+      console.error("Error removing workspace member:", error);
+      res.status(500).json({ message: "Failed to remove workspace member" });
+    }
+  });
+
+  // Public API endpoint (v1) - authenticated via API key
+  app.post('/api/v1/chat', async (req, res) => {
+    try {
+      const apiKeyHeader = req.headers['x-api-key'] as string;
+      
+      if (!apiKeyHeader) {
+        return res.status(401).json({ error: "API key required" });
+      }
+      
+      // Hash the provided key to compare with stored hash
+      const hashedKey = hashApiKey(apiKeyHeader);
+      const apiKey = await storage.getApiKey(hashedKey);
+      
+      if (!apiKey) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+      
+      // Check if API key is expired
+      if (apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date()) {
+        return res.status(401).json({ error: "API key expired" });
+      }
+      
+      // Update last used timestamp
+      await storage.updateApiKeyLastUsed(apiKey.id);
+      
+      const { message, modelId } = req.body;
+      
+      if (!message || !modelId) {
+        return res.status(400).json({ error: "message and modelId are required" });
+      }
+      
+      // Get the model (check if it belongs to the API key's user or their workspace)
+      const model = await storage.getAIModel(apiKey.userId, modelId);
+      if (!model && apiKey.modelId !== modelId) {
+        return res.status(404).json({ error: "Model not found or access denied" });
+      }
+      
+      // Get OpenAI API key from environment
+      const openaiApiKey = process.env.OPENAI_API_KEY;
+      if (!openaiApiKey) {
+        return res.status(500).json({ error: "OpenAI API key not configured" });
+      }
+      
+      const openai = new OpenAI({ apiKey: openaiApiKey });
+      
+      const completion = await openai.chat.completions.create({
+        model: model?.model || "gpt-4o-mini",
+        messages: [
+          { role: "system", content: model?.systemPrompt || "You are a helpful assistant." },
+          { role: "user", content: message }
+        ],
+        temperature: (model?.temperature || 70) / 100,
+        max_tokens: model?.maxTokens || 1000,
+      });
+      
+      const response = completion.choices[0]?.message?.content || "";
+      
+      // Log usage
+      if (completion.usage) {
+        await storage.logUsage({
+          userId: apiKey.userId,
+          modelId: modelId,
+          conversationId: null,
+          promptTokens: completion.usage.prompt_tokens,
+          completionTokens: completion.usage.completion_tokens,
+          totalTokens: completion.usage.total_tokens,
+          model: model?.model || "gpt-4o-mini",
+        });
+      }
+      
+      res.json({
+        response,
+        usage: completion.usage
+      });
+    } catch (error: any) {
+      console.error("Error in public API:", error);
+      res.status(500).json({ error: error.message || "Failed to process request" });
     }
   });
 

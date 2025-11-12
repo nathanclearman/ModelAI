@@ -1,4 +1,4 @@
-import { Home, Layers, History, Settings, Plus, Upload, BookTemplate, Zap, Store } from "lucide-react";
+import { Home, Layers, History, Settings, Plus, Upload, BookTemplate, Zap, Store, Key, Users } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -30,6 +30,16 @@ const menuItems = [
     title: "Marketplace",
     url: "/marketplace",
     icon: Store,
+  },
+  {
+    title: "Workspaces",
+    url: "/workspaces",
+    icon: Users,
+  },
+  {
+    title: "API Keys",
+    url: "/api-keys",
+    icon: Key,
   },
   {
     title: "Upload Model",

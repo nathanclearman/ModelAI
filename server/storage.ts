@@ -102,8 +102,8 @@ export interface IStorage {
   getUserWorkspaceRole(userId: string, workspaceId: string): Promise<string | null>;
   
   // API key methods
-  createApiKey(userId: string, apiKey: InsertApiKey): Promise<ApiKey>;
-  getApiKey(keyString: string): Promise<ApiKey | undefined>;
+  createApiKey(userId: string, apiKeyData: InsertApiKey & { key: string }): Promise<ApiKey>;
+  getApiKey(hashedKey: string): Promise<ApiKey | undefined>;
   getUserApiKeys(userId: string): Promise<ApiKey[]>;
   updateApiKeyLastUsed(id: string): Promise<void>;
   deleteApiKey(userId: string, id: string): Promise<boolean>;
@@ -602,19 +602,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   // API key methods
-  async createApiKey(userId: string, apiKey: InsertApiKey): Promise<ApiKey> {
+  async createApiKey(userId: string, apiKeyData: InsertApiKey & { key: string }): Promise<ApiKey> {
     const [created] = await db
       .insert(apiKeys)
-      .values({ ...apiKey, userId })
+      .values({ ...apiKeyData, userId })
       .returning();
     return created;
   }
 
-  async getApiKey(keyString: string): Promise<ApiKey | undefined> {
+  async getApiKey(hashedKey: string): Promise<ApiKey | undefined> {
     const result = await db
       .select()
       .from(apiKeys)
-      .where(eq(apiKeys.key, keyString));
+      .where(eq(apiKeys.key, hashedKey));
     return result[0];
   }
 

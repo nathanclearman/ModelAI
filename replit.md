@@ -28,6 +28,20 @@ The platform includes:
   - Model export/import in JSON format for backup and sharing
   - Public/private visibility toggle for marketplace sharing
   - Category and tag organization for discovery
+- **Model API Access:** Generate secure API keys to integrate AI models into external applications.
+  - Create API keys with custom names and optional model scoping
+  - API keys hashed with SHA-256 before storage for security
+  - Keys shown in full only once upon creation, then masked
+  - Optional expiration dates (7, 30, 90, 365 days or never)
+  - Last used timestamp tracking
+  - Public API endpoint (/api/v1/chat) for programmatic access
+  - API key authentication via X-API-Key header
+- **Team Workspaces:** Collaborate with team members and share AI models.
+  - Create workspaces for team collaboration
+  - Role-based access control (owner, admin, editor, viewer)
+  - Add/remove team members with specific roles
+  - Owners auto-added as workspace owners upon creation
+  - Models can be assigned to workspaces for team access
 - **Model Marketplace:** Discover, like, and clone AI models shared by the community.
   - Browse public models from all users
   - Search and filter by name, description, category

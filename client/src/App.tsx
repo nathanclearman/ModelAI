@@ -19,6 +19,8 @@ import History from "@/pages/history";
 import Settings from "@/pages/settings";
 import Admin from "@/pages/admin";
 import Marketplace from "@/pages/marketplace";
+import ApiKeys from "@/pages/api-keys";
+import Workspaces from "@/pages/workspaces";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -49,6 +51,8 @@ function Router() {
       <Route path="/templates" component={Templates} />
       <Route path="/history" component={History} />
       <Route path="/settings" component={Settings} />
+      <Route path="/api-keys" component={ApiKeys} />
+      <Route path="/workspaces" component={Workspaces} />
       <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
