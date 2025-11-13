@@ -58,6 +58,9 @@ export interface IStorage {
   updateNewsletterSubscription(userId: string, subscribed: boolean): Promise<User | undefined>;
   getNewsletterSubscribers(): Promise<Array<{ email: string; firstName: string | null; lastName: string | null }>>;
   incrementUserMessages(userId: string): Promise<void>;
+  createVerificationToken(userId: string, token: string): Promise<void>;
+  verifyEmail(token: string): Promise<User | undefined>;
+  getUserByVerificationToken(token: string): Promise<User | undefined>;
   
   // AI Model methods (all scoped to userId)
   createAIModel(userId: string, model: InsertAIModel): Promise<AIModel>;
@@ -213,6 +216,38 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
+  async createVerificationToken(userId: string, token: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ 
+        verificationToken: token,
+        verificationSentAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async verifyEmail(token: string): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({ 
+        emailVerified: 1,
+        verificationToken: null,
+        updatedAt: new Date()
+      })
+      .where(eq(users.verificationToken, token))
+      .returning();
+    return result[0];
+  }
+
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.verificationToken, token));
+    return result[0];
+  }
+
   // AI Model methods (all scoped to userId)
   async createAIModel(userId: string, model: InsertAIModel): Promise<AIModel> {
     const result = await db.insert(aiModels).values({ ...model, userId }).returning();
@@ -320,7 +355,7 @@ export class DatabaseStorage implements IStorage {
       .from(usageLogs)
       .where(and(
         eq(usageLogs.userId, userId),
-        drizzleSql`${usageLogs.createdAt} >= ${cutoffDate}`
+        sql`${usageLogs.createdAt} >= ${cutoffDate}`
       ));
 
     const totalTokens = allUsage.reduce((sum, log) => sum + log.totalTokens, 0);
@@ -433,7 +468,7 @@ export class DatabaseStorage implements IStorage {
     // Increment likes count
     await db
       .update(aiModels)
-      .set({ likesCount: drizzleSql`${aiModels.likesCount} + 1` })
+      .set({ likesCount: sql`${aiModels.likesCount} + 1` })
       .where(eq(aiModels.id, modelId));
 
     return true;
@@ -449,7 +484,7 @@ export class DatabaseStorage implements IStorage {
       // Decrement likes count
       await db
         .update(aiModels)
-        .set({ likesCount: drizzleSql`${aiModels.likesCount} - 1` })
+        .set({ likesCount: sql`${aiModels.likesCount} - 1` })
         .where(eq(aiModels.id, modelId));
       return true;
     }
@@ -480,7 +515,7 @@ export class DatabaseStorage implements IStorage {
     // Increment usage count on original
     await db
       .update(aiModels)
-      .set({ usageCount: drizzleSql`${aiModels.usageCount} + 1` })
+      .set({ usageCount: sql`${aiModels.usageCount} + 1` })
       .where(eq(aiModels.id, modelId));
 
     // Create clone for the user
