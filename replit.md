@@ -18,7 +18,10 @@ The backend is an Express.js application written in TypeScript, featuring RESTfu
 
 ### Feature Specifications
 The platform includes:
-- **Authentication:** Traditional email/password login with secure session management and account switching.
+- **Authentication:** Traditional email/password login with email verification and secure session management.
+  - Email verification required: New users receive a verification email and must verify before login
+  - Verification tokens expire in 24 hours for security
+  - Auto-login after successful email verification
   - User menu with avatar showing user initials
   - Dropdown menu displaying name and email
   - Settings shortcut from user menu
