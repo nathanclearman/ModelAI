@@ -54,8 +54,8 @@ export class LocalTempImageStore implements IImageStore {
 
   constructor() {
     // Use the server's base URL for accessing images
-    this.baseUrl = process.env.REPL_URL
-      ? `https://${process.env.REPL_URL}`
+    this.baseUrl = process.env.REPLIT_DEV_DOMAIN
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
       : "http://localhost:5000";
   }
 
