@@ -121,6 +121,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Model Version Routes
+
+  // Get all versions for a model
+  app.get("/api/models/:id/versions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      // Verify user owns the model
+      const model = await storage.getAIModel(userId, req.params.id);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+      const versions = await storage.getModelVersions(req.params.id);
+      res.json(versions);
+    } catch (error) {
+      console.error("Error fetching model versions:", error);
+      res.status(500).json({ error: "Failed to fetch model versions" });
+    }
+  });
+
+  // Get a specific version of a model
+  app.get("/api/models/:id/versions/:versionNumber", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      // Verify user owns the model
+      const model = await storage.getAIModel(userId, req.params.id);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+      const version = await storage.getModelVersion(req.params.id, parseInt(req.params.versionNumber));
+      if (!version) {
+        return res.status(404).json({ error: "Version not found" });
+      }
+      res.json(version);
+    } catch (error) {
+      console.error("Error fetching model version:", error);
+      res.status(500).json({ error: "Failed to fetch model version" });
+    }
+  });
+
+  // Restore model to a previous version
+  app.post("/api/models/:id/versions/:versionNumber/restore", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const versionNumber = parseInt(req.params.versionNumber);
+      
+      // Restore the model to the specified version
+      const restoredModel = await storage.restoreModelVersion(userId, req.params.id, versionNumber);
+      if (!restoredModel) {
+        return res.status(404).json({ error: "Model or version not found" });
+      }
+
+      // Create a new version snapshot after restore (for audit trail)
+      const latestVersion = await storage.getLatestVersionNumber(req.params.id);
+      await storage.createModelVersion({
+        modelId: req.params.id,
+        versionNumber: latestVersion + 1,
+        name: restoredModel.name,
+        description: restoredModel.description,
+        systemPrompt: restoredModel.systemPrompt,
+        model: restoredModel.model,
+        temperature: restoredModel.temperature,
+        maxTokens: restoredModel.maxTokens,
+        template: restoredModel.template,
+        category: restoredModel.category,
+        tags: restoredModel.tags,
+        changeDescription: `Restored from version ${versionNumber}`,
+        createdBy: userId,
+      });
+
+      res.json(restoredModel);
+    } catch (error) {
+      console.error("Error restoring model version:", error);
+      res.status(500).json({ error: "Failed to restore model version" });
+    }
+  });
+
   // Conversation Routes (all protected)
   
   // Get all conversations for the authenticated user
