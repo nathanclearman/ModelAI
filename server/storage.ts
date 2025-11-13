@@ -108,6 +108,7 @@ export interface IStorage {
   }>;
   getUserCostStats(): Promise<UserCostStat[]>;
   updateUserAdminStatus(userId: string, isAdmin: number): Promise<User | undefined>;
+  incrementImageUsage(userId: string): Promise<User | undefined>;
   
   // Workspace methods
   createWorkspace(userId: string, workspace: InsertWorkspace): Promise<Workspace>;
@@ -619,6 +620,18 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .update(users)
       .set({ isAdmin, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  async incrementImageUsage(userId: string): Promise<User | undefined> {
+    const user = await this.getUser(userId);
+    if (!user) return undefined;
+    
+    const result = await db
+      .update(users)
+      .set({ imagesUsed: user.imagesUsed + 1, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
     return result[0];
