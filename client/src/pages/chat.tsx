@@ -65,6 +65,16 @@ export default function Chat() {
   const handleSendMessage = async (message: string) => {
     if (!modelId || !message.trim() || isStreaming) return;
 
+    // Block sending messages when creating a new model
+    if (modelId === "new") {
+      toast({
+        title: "Save Model First",
+        description: "Please configure and save your model before starting a conversation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const userMessage: Message = {
       role: "user",
       content: message,
@@ -295,10 +305,12 @@ export default function Chat() {
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="h-[600px]">
           <ChatInterface
-            modelName={model?.name || "AI Assistant"}
+            modelName={model?.name || "New Model"}
             initialMessages={messages}
             onSendMessage={handleSendMessage}
             isLoading={isStreaming}
+            disabled={modelId === "new"}
+            disabledMessage="Save your model first"
             onGenerateImage={(prompt) => {
               generateImageMutation.mutate(prompt);
             }}

@@ -16,6 +16,8 @@ interface ChatInterfaceProps {
   initialMessages?: Message[];
   isLoading?: boolean;
   canUseImages?: boolean; // Whether user has access to premium image features
+  disabled?: boolean; // Whether chat input is disabled
+  disabledMessage?: string; // Custom message to show when disabled
 }
 
 export function ChatInterface({ 
@@ -25,7 +27,9 @@ export function ChatInterface({
   onAnalyzeImage,
   initialMessages = [], 
   isLoading: externalIsLoading = false,
-  canUseImages = false 
+  canUseImages = false,
+  disabled = false,
+  disabledMessage = "Chat is currently disabled"
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -106,10 +110,17 @@ export function ChatInterface({
 
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
-          {messages.length === 0 && (
+          {messages.length === 0 && !disabled && (
             <div className="text-center py-12 text-muted-foreground">
               <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Start a conversation with your AI model</p>
+            </div>
+          )}
+          {messages.length === 0 && disabled && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="font-medium">{disabledMessage}</p>
+              <p className="text-sm mt-2">Configure and save your model to start chatting</p>
             </div>
           )}
           {messages.map((message, index) => (
@@ -215,7 +226,7 @@ export function ChatInterface({
                 variant="outline"
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={externalIsLoading || !!selectedImage}
+                disabled={disabled || externalIsLoading || !!selectedImage}
                 className="h-[60px] w-[60px]"
                 data-testid="button-upload-image"
               >
@@ -225,7 +236,7 @@ export function ChatInterface({
                 variant="outline"
                 size="icon"
                 onClick={handleGenerateImage}
-                disabled={!input.trim() || externalIsLoading}
+                disabled={disabled || !input.trim() || externalIsLoading}
                 className="h-[60px] w-[60px]"
                 data-testid="button-generate-image"
               >
@@ -234,16 +245,17 @@ export function ChatInterface({
             </>
           )}
           <Textarea
-            placeholder="Type your message..."
+            placeholder={disabled ? "Save model to start chatting..." : "Type your message..."}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             className="resize-none min-h-[60px]"
+            disabled={disabled}
             data-testid="textarea-chat-input"
           />
           <Button
             onClick={handleSend}
-            disabled={(!input.trim() && !selectedImage) || externalIsLoading}
+            disabled={disabled || (!input.trim() && !selectedImage) || externalIsLoading}
             size="icon"
             className="h-[60px] w-[60px]"
             data-testid="button-send-message"
