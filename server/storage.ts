@@ -228,11 +228,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async verifyEmail(token: string): Promise<User | undefined> {
+    // First get the user to check token expiration
+    const user = await this.getUserByVerificationToken(token);
+    if (!user || !user.verificationSentAt) {
+      return undefined;
+    }
+
+    // Check if token is expired (24 hours)
+    const expirationTime = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+    const sentAt = new Date(user.verificationSentAt).getTime();
+    const now = Date.now();
+    if (now - sentAt > expirationTime) {
+      return undefined; // Token expired
+    }
+
+    // Verify and clear token
     const result = await db
       .update(users)
       .set({ 
         emailVerified: 1,
         verificationToken: null,
+        verificationSentAt: null,
         updatedAt: new Date()
       })
       .where(eq(users.verificationToken, token))

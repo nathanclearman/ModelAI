@@ -5,6 +5,8 @@ import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import { sendWelcomeEmail } from "./email/emailService";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -52,6 +54,11 @@ export async function setupAuth(app: Express) {
           const isValid = await bcrypt.compare(password, user.password);
           if (!isValid) {
             return done(null, false, { message: "Invalid email or password" });
+          }
+
+          // Check if email is verified
+          if (!user.emailVerified) {
+            return done(null, false, { message: "Please verify your email address before logging in" });
           }
 
           // Don't send password to client
@@ -120,22 +127,37 @@ export async function setupAuth(app: Express) {
       // Auto-admin specific email
       const isAdmin = email === "fransantbrid@anglernook.com" ? 1 : 0;
 
-      // Create user
+      // Create user (not verified yet)
       const user = await storage.createUser({
         email,
         password: hashedPassword,
         firstName: firstName || null,
         lastName: lastName || null,
         isAdmin,
+        emailVerified: 0, // Not verified yet
       });
 
-      // Log the user in
-      const { password: _, ...userWithoutPassword } = user;
-      req.logIn(userWithoutPassword, (err) => {
-        if (err) {
-          return res.status(500).json({ message: "Registration succeeded but login failed" });
-        }
-        return res.json(userWithoutPassword);
+      // Generate verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      await storage.createVerificationToken(user.id, verificationToken);
+
+      // Send verification email
+      const username = user.firstName || email.split('@')[0];
+      const subscriptionTier = "Free"; // New users start on free tier
+      const emailResult = await sendWelcomeEmail(email, username, subscriptionTier, verificationToken);
+
+      // Check if email send failed
+      if (!emailResult.success) {
+        return res.status(500).json({ 
+          message: "Registration successful, but failed to send verification email. Please contact support.",
+          emailSent: false
+        });
+      }
+
+      // Return success message (don't log user in yet)
+      return res.json({ 
+        message: "Registration successful! Please check your email to verify your account.",
+        emailSent: true
       });
     } catch (error: any) {
       console.error("Registration error:", error);

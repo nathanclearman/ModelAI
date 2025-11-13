@@ -21,7 +21,11 @@ export const WelcomeEmail = ({
   subscriptionTier = 'Free',
   verificationToken = '',
 }: WelcomeEmailProps) => {
-  const verificationUrl = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}/verify-email?token=${verificationToken}`;
+  // Use the Replit domain or fallback to localhost (with http for dev)
+  const domain = process.env.REPLIT_DEV_DOMAIN;
+  const protocol = domain ? 'https' : 'http';
+  const host = domain || 'localhost:5000';
+  const verificationUrl = `${protocol}://${host}/verify-email?token=${verificationToken}`;
   
   return (
     <Html>

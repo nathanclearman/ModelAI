@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/landing";
+import VerifyEmail from "@/pages/verify-email";
 import Dashboard from "@/pages/dashboard";
 import Models from "@/pages/models";
 import Chat from "@/pages/chat";
@@ -37,23 +38,22 @@ function Router() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Landing />;
-  }
-
+  // Public routes (no authentication required)
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/models" component={Models} />
-      <Route path="/chat/:modelId/:conversationId?" component={Chat} />
-      <Route path="/upload" component={UploadModel} />
-      <Route path="/marketplace" component={Marketplace} />
-      <Route path="/templates" component={Templates} />
-      <Route path="/history" component={History} />
-      <Route path="/settings" component={Settings} />
-      <Route path="/api-keys" component={ApiKeys} />
-      <Route path="/workspaces" component={Workspaces} />
-      <Route path="/admin" component={Admin} />
+      <Route path="/verify-email" component={VerifyEmail} />
+      {!isAuthenticated && <Route path="/" component={Landing} />}
+      {isAuthenticated && <Route path="/" component={Dashboard} />}
+      {isAuthenticated && <Route path="/models" component={Models} />}
+      {isAuthenticated && <Route path="/chat/:modelId/:conversationId?" component={Chat} />}
+      {isAuthenticated && <Route path="/upload" component={UploadModel} />}
+      {isAuthenticated && <Route path="/marketplace" component={Marketplace} />}
+      {isAuthenticated && <Route path="/templates" component={Templates} />}
+      {isAuthenticated && <Route path="/history" component={History} />}
+      {isAuthenticated && <Route path="/settings" component={Settings} />}
+      {isAuthenticated && <Route path="/api-keys" component={ApiKeys} />}
+      {isAuthenticated && <Route path="/workspaces" component={Workspaces} />}
+      {isAuthenticated && <Route path="/admin" component={Admin} />}
       <Route component={NotFound} />
     </Switch>
   );

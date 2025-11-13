@@ -46,6 +46,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Email verification endpoint
+  app.get('/api/auth/verify-email', async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== 'string') {
+        return res.status(400).json({ error: "Verification token is required" });
+      }
+
+      // Verify the email using the token
+      const user = await storage.verifyEmail(token);
+
+      if (!user) {
+        return res.status(400).json({ error: "Invalid or expired verification token" });
+      }
+
+      // Log the user in after successful verification
+      const { password, ...userWithoutPassword } = user;
+      req.logIn(userWithoutPassword, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Verification succeeded but login failed. Please log in manually." });
+        }
+        return res.json({ 
+          message: "Email verified successfully! You can now use your account.",
+          user: userWithoutPassword
+        });
+      });
+    } catch (error) {
+      console.error("Error verifying email:", error);
+      res.status(500).json({ error: "Email verification failed" });
+    }
+  });
+
   // Update newsletter subscription
   app.patch('/api/auth/newsletter', isAuthenticated, async (req: any, res) => {
     try {

@@ -26,12 +26,27 @@ export default function Landing() {
         ? { email, password }
         : { email, password, firstName, lastName };
 
-      await apiRequest("POST", endpoint, body);
-      
-      // Invalidate and refetch user data
+      const response = await apiRequest("POST", endpoint, body);
+      const data = await response.json();
+
+      // Handle registration - show success message
+      if (!isLogin) {
+        toast({
+          title: "Registration Successful!",
+          description: data.message || "Please check your email to verify your account.",
+          duration: 8000,
+        });
+        // Clear form and switch to login mode
+        setEmail("");
+        setPassword("");
+        setFirstName("");
+        setLastName("");
+        setIsLogin(true);
+        return;
+      }
+
+      // Handle login - invalidate and redirect
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      
-      // Reload the page to show authenticated app
       window.location.href = "/";
     } catch (error: any) {
       toast({
