@@ -105,17 +105,14 @@ export default function Settings() {
   const createCheckoutMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/create-checkout-session", {});
-      console.log("Checkout session response:", response);
-      return response;
+      const data = await response.json();
+      return data;
     },
-    onSuccess: (response: any) => {
-      console.log("onSuccess called with:", response);
-      if (response && response.url) {
-        console.log("Redirecting to:", response.url);
+    onSuccess: (data: any) => {
+      if (data && data.url) {
         // Redirect to Stripe checkout
-        window.location.href = response.url;
+        window.location.href = data.url;
       } else {
-        console.error("No URL in response:", response);
         toast({
           variant: "destructive",
           title: "Error",
@@ -124,7 +121,6 @@ export default function Settings() {
       }
     },
     onError: (error: any) => {
-      console.error("Mutation error:", error);
       toast({
         variant: "destructive",
         title: "Payment Error",
