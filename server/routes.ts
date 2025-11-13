@@ -658,6 +658,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get newsletter subscribers count
+  app.get('/api/admin/newsletter/subscribers', isAdmin, async (req: any, res) => {
+    try {
+      const subscribers = await storage.getNewsletterSubscribers();
+      res.json({ count: subscribers.length, subscribers });
+    } catch (error) {
+      console.error("Error fetching newsletter subscribers:", error);
+      res.status(500).json({ message: "Failed to fetch newsletter subscribers" });
+    }
+  });
+
+  // Send newsletter to all subscribers
+  app.post('/api/admin/newsletter/send', isAdmin, async (req: any, res) => {
+    try {
+      const { subject, headline, content, ctaText, ctaUrl } = req.body;
+
+      if (!subject || !headline || !content) {
+        return res.status(400).json({ error: "Subject, headline, and content are required" });
+      }
+
+      // Get all newsletter subscribers
+      const subscribers = await storage.getNewsletterSubscribers();
+
+      if (subscribers.length === 0) {
+        return res.status(400).json({ error: "No subscribers found" });
+      }
+
+      // Import email service dynamically
+      const { sendNewsletterToSubscribers } = await import('./email/emailService');
+
+      // Send newsletter to all subscribers
+      const results = await sendNewsletterToSubscribers(
+        subscribers,
+        subject,
+        headline,
+        content,
+        ctaText,
+        ctaUrl
+      );
+
+      const successCount = results.filter(r => r.success).length;
+      const failureCount = results.filter(r => !r.success).length;
+
+      res.json({
+        message: "Newsletter sent",
+        totalSubscribers: subscribers.length,
+        successCount,
+        failureCount,
+        results,
+      });
+    } catch (error) {
+      console.error("Error sending newsletter:", error);
+      res.status(500).json({ error: "Failed to send newsletter" });
+    }
+  });
+
   // Analytics API endpoints
   app.get('/api/analytics/usage', isAuthenticated, async (req: any, res) => {
     try {

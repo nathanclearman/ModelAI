@@ -77,6 +77,7 @@ The platform includes:
 ### Third-Party Services
 - **Neon Database:** Serverless PostgreSQL hosting for data persistence.
 - **Replit AI Integrations:** Managed access to OpenAI API and Replit development tools.
+- **Resend:** Transactional email service for newsletters and notifications. Includes React Email templates with branded design.
 
 ### NPM Packages (Key Examples)
 - **@neondatabase/serverless:** PostgreSQL connectivity.
