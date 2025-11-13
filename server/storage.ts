@@ -15,6 +15,8 @@ import {
   imageAssets,
   documents,
   stripeCheckoutSessions,
+  workflows,
+  workflowRuns,
   type User,
   type UpsertUser,
   type AIModel,
@@ -37,6 +39,10 @@ import {
   type Document,
   type InsertDocument,
   type StripeCheckoutSession,
+  type Workflow,
+  type InsertWorkflow,
+  type WorkflowRun,
+  type InsertWorkflowRun,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -166,6 +172,19 @@ export interface IStorage {
   getLatestVersionNumber(modelId: string): Promise<number>;
   restoreModelVersion(userId: string, modelId: string, versionNumber: number): Promise<AIModel | undefined>;
   deleteModelVersion(versionId: string): Promise<boolean>;
+  
+  // Workflow methods
+  createWorkflow(userId: string, workflow: InsertWorkflow): Promise<Workflow>;
+  getWorkflow(userId: string, id: string): Promise<Workflow | undefined>;
+  getUserWorkflows(userId: string): Promise<Workflow[]>;
+  updateWorkflow(userId: string, id: string, workflow: Partial<InsertWorkflow>): Promise<Workflow | undefined>;
+  deleteWorkflow(userId: string, id: string): Promise<boolean>;
+  
+  // Workflow run methods
+  createWorkflowRun(run: InsertWorkflowRun): Promise<WorkflowRun>;
+  getWorkflowRun(id: string): Promise<WorkflowRun | undefined>;
+  getWorkflowRuns(workflowId: string): Promise<WorkflowRun[]>;
+  updateWorkflowRun(id: string, run: Partial<InsertWorkflowRun>): Promise<WorkflowRun | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1082,6 +1101,76 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(documents.id, id), eq(documents.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  // Workflow methods
+  async createWorkflow(userId: string, workflow: InsertWorkflow): Promise<Workflow> {
+    const [created] = await db.insert(workflows).values({
+      ...workflow,
+      userId,
+    }).returning();
+    return created;
+  }
+
+  async getWorkflow(userId: string, id: string): Promise<Workflow | undefined> {
+    const result = await db
+      .select()
+      .from(workflows)
+      .where(and(eq(workflows.id, id), eq(workflows.userId, userId)));
+    return result[0];
+  }
+
+  async getUserWorkflows(userId: string): Promise<Workflow[]> {
+    return db
+      .select()
+      .from(workflows)
+      .where(eq(workflows.userId, userId))
+      .orderBy(desc(workflows.createdAt));
+  }
+
+  async updateWorkflow(userId: string, id: string, workflow: Partial<InsertWorkflow>): Promise<Workflow | undefined> {
+    const result = await db
+      .update(workflows)
+      .set({ ...workflow, updatedAt: new Date() })
+      .where(and(eq(workflows.id, id), eq(workflows.userId, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async deleteWorkflow(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(workflows)
+      .where(and(eq(workflows.id, id), eq(workflows.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Workflow run methods
+  async createWorkflowRun(run: InsertWorkflowRun): Promise<WorkflowRun> {
+    const [created] = await db.insert(workflowRuns).values(run).returning();
+    return created;
+  }
+
+  async getWorkflowRun(id: string): Promise<WorkflowRun | undefined> {
+    const result = await db.select().from(workflowRuns).where(eq(workflowRuns.id, id));
+    return result[0];
+  }
+
+  async getWorkflowRuns(workflowId: string): Promise<WorkflowRun[]> {
+    return db
+      .select()
+      .from(workflowRuns)
+      .where(eq(workflowRuns.workflowId, workflowId))
+      .orderBy(desc(workflowRuns.startedAt));
+  }
+
+  async updateWorkflowRun(id: string, run: Partial<InsertWorkflowRun>): Promise<WorkflowRun | undefined> {
+    const result = await db
+      .update(workflowRuns)
+      .set(run)
+      .where(eq(workflowRuns.id, id))
+      .returning();
+    return result[0];
   }
 }
 
