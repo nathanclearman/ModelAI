@@ -189,3 +189,11 @@ export async function* streamChatWithImages(messages: Array<{
     throw new Error(`Failed to stream chat: ${error.message}`);
   }
 }
+
+// Export as default object for easier imports
+export const geminiService = {
+  generateImage,
+  analyzeImage,
+  chatWithImages,
+  streamChatWithImages,
+};

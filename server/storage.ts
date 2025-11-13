@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, sum, count } from "drizzle-orm";
+import { eq, desc, and, sql, sum, count, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { neonConfig, Pool } from "@neondatabase/serverless";
 import ws from "ws";
@@ -12,6 +12,7 @@ import {
   workspaceMembers,
   apiKeys,
   modelVersions,
+  imageAssets,
   type User,
   type UpsertUser,
   type AIModel,
@@ -29,6 +30,8 @@ import {
   type InsertApiKey,
   type ModelVersion,
   type InsertModelVersion,
+  type ImageAsset,
+  type InsertImageAsset,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -109,6 +112,13 @@ export interface IStorage {
   getUserCostStats(): Promise<UserCostStat[]>;
   updateUserAdminStatus(userId: string, isAdmin: number): Promise<User | undefined>;
   incrementImageUsage(userId: string): Promise<User | undefined>;
+  
+  // Image asset methods
+  createImageAsset(asset: InsertImageAsset): Promise<ImageAsset>;
+  getImageAsset(id: string): Promise<ImageAsset | undefined>;
+  getUserImageAssets(userId: string): Promise<ImageAsset[]>;
+  getExpiredImageAssets(): Promise<ImageAsset[]>;
+  deleteImageAsset(id: string): Promise<boolean>;
   
   // Workspace methods
   createWorkspace(userId: string, workspace: InsertWorkspace): Promise<Workspace>;
@@ -865,6 +875,34 @@ export class DatabaseStorage implements IStorage {
       .delete(modelVersions)
       .where(eq(modelVersions.id, versionId))
       .returning();
+    return result.length > 0;
+  }
+
+  // Image asset methods
+  async createImageAsset(asset: InsertImageAsset): Promise<ImageAsset> {
+    const [created] = await db.insert(imageAssets).values(asset).returning();
+    return created;
+  }
+
+  async getImageAsset(id: string): Promise<ImageAsset | undefined> {
+    const result = await db.select().from(imageAssets).where(eq(imageAssets.id, id));
+    return result[0];
+  }
+
+  async getUserImageAssets(userId: string): Promise<ImageAsset[]> {
+    return db.select().from(imageAssets).where(eq(imageAssets.userId, userId)).orderBy(desc(imageAssets.createdAt));
+  }
+
+  async getExpiredImageAssets(): Promise<ImageAsset[]> {
+    const now = new Date();
+    return db.select().from(imageAssets).where(and(
+      sql`${imageAssets.expiresAt} IS NOT NULL`,
+      lt(imageAssets.expiresAt, now)
+    ));
+  }
+
+  async deleteImageAsset(id: string): Promise<boolean> {
+    const result = await db.delete(imageAssets).where(eq(imageAssets.id, id)).returning();
     return result.length > 0;
   }
 }

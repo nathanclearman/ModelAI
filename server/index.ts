@@ -51,6 +51,9 @@ app.use((req, res, next) => {
   // Setup authentication once at startup
   await setupAuth(app);
   
+  // Serve temporary images from /tmp
+  app.use("/tmp-images", express.static("/tmp/model-ai-images"));
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

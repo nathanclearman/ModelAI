@@ -125,9 +125,26 @@ export type Message = {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  imageUrl?: string; // Optional image URL or base64 data URL
+  imageUrl?: string; // Optional image URL (from object storage, not base64)
   imageType?: "upload" | "generated"; // Track if image was uploaded or AI-generated
 };
+
+// Image assets table for generated/uploaded images
+export const imageAssets = pgTable("image_assets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  storageKey: text("storage_key").notNull(), // Path/key in object storage or /tmp
+  publicUrl: text("public_url").notNull(), // URL to access the image
+  mimeType: text("mime_type").notNull().default("image/png"),
+  byteSize: integer("byte_size").notNull(),
+  imageType: text("image_type").notNull(), // "generated" or "upload"
+  prompt: text("prompt"), // For generated images
+  expiresAt: timestamp("expires_at"), // For temp storage cleanup
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ImageAsset = typeof imageAssets.$inferSelect;
+export type InsertImageAsset = typeof imageAssets.$inferInsert;
 
 // Usage tracking table for analytics
 export const usageLogs = pgTable("usage_logs", {

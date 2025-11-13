@@ -6,6 +6,8 @@ import OpenAI from "openai";
 import { isAuthenticated, isAdmin } from "./auth";
 import { generateApiKey, hashApiKey } from "./utils/apiKey";
 import { calculateCost } from "./utils/costCalculator";
+import { geminiService } from "./services/geminiService";
+import { requireImageAccess, checkImageQuota, incrementImageUsage } from "./middleware/imageAccess";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -426,6 +428,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting conversation:", error);
       res.status(500).json({ error: "Failed to delete conversation" });
+    }
+  });
+
+  // Image generation endpoint (protected - requires premium/admin access)
+  app.post("/api/chat/generate-image", isAuthenticated, requireImageAccess, checkImageQuota, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { modelId, prompt, conversationId } = req.body;
+
+      if (!modelId || !prompt) {
+        return res.status(400).json({ error: "Model ID and prompt are required" });
+      }
+
+      // Generate image using Gemini
+      const { imageData, mimeType } = await geminiService.generateImage(prompt);
+      
+      // Increment image usage for non-admin users
+      const user = await storage.getUserById(userId);
+      if (user && user.isAdmin !== 1) {
+        await incrementImageUsage(userId);
+      }
+
+      // Create message with generated image
+      const userMessage: Message = {
+        role: "user",
+        content: prompt,
+        timestamp: new Date().toISOString(),
+      };
+
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: `I've generated an image based on your prompt: "${prompt}"`,
+        timestamp: new Date().toISOString(),
+        imageUrl: imageData,
+        imageType: "generated"
+      };
+
+      // Get or create conversation
+      let conversation = conversationId
+        ? await storage.getConversation(userId, conversationId)
+        : null;
+
+      const messages = conversation?.messages as Message[] || [];
+      messages.push(userMessage);
+      messages.push(assistantMessage);
+
+      // Save conversation
+      let savedConversation;
+      if (conversation) {
+        savedConversation = await storage.updateConversation(userId, conversation.id, {
+          messages: messages as any,
+        });
+      } else {
+        const title = prompt.slice(0, 50) + (prompt.length > 50 ? "..." : "");
+        savedConversation = await storage.createConversation(userId, {
+          modelId,
+          title,
+          messages: messages as any,
+        });
+      }
+
+      res.json({
+        message: assistantMessage,
+        conversationId: savedConversation?.id,
+        imageUrl: imageData
+      });
+    } catch (error: any) {
+      console.error("Error generating image:", error);
+      res.status(500).json({ error: error.message || "Failed to generate image" });
+    }
+  });
+
+  // Image analysis endpoint (protected - requires premium/admin access)
+  app.post("/api/chat/analyze-image", isAuthenticated, requireImageAccess, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { modelId, imageUrl, prompt, conversationId } = req.body;
+
+      if (!modelId || !imageUrl) {
+        return res.status(400).json({ error: "Model ID and image URL are required" });
+      }
+
+      // Analyze image using Gemini
+      const { analysis } = await geminiService.analyzeImage(imageUrl, prompt);
+
+      // Create messages
+      const userMessage: Message = {
+        role: "user",
+        content: prompt || "Analyze this image",
+        timestamp: new Date().toISOString(),
+        imageUrl,
+        imageType: "upload"
+      };
+
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: analysis,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Get or create conversation
+      let conversation = conversationId
+        ? await storage.getConversation(userId, conversationId)
+        : null;
+
+      const messages = conversation?.messages as Message[] || [];
+      messages.push(userMessage);
+      messages.push(assistantMessage);
+
+      // Save conversation
+      let savedConversation;
+      if (conversation) {
+        savedConversation = await storage.updateConversation(userId, conversation.id, {
+          messages: messages as any,
+        });
+      } else {
+        const title = (prompt || "Image analysis").slice(0, 50);
+        savedConversation = await storage.createConversation(userId, {
+          modelId,
+          title,
+          messages: messages as any,
+        });
+      }
+
+      res.json({
+        message: assistantMessage,
+        conversationId: savedConversation?.id
+      });
+    } catch (error: any) {
+      console.error("Error analyzing image:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze image" });
     }
   });
 
