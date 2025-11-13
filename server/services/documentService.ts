@@ -1,6 +1,7 @@
 import * as pdf from "pdf-parse";
 import mammoth from "mammoth";
 import { Buffer } from "buffer";
+import { analyzeImage } from "./geminiService";
 
 export interface MulterFile {
   fieldname: string;
@@ -27,6 +28,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAGIC_BYTES = {
   pdf: [0x25, 0x50, 0x44, 0x46], // %PDF
   docx: [0x50, 0x4B, 0x03, 0x04], // PK (ZIP format)
+  png: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], // PNG signature
   txt: null, // Plain text has no magic bytes
   md: null, // Markdown has no magic bytes
 };
@@ -37,6 +39,7 @@ const ALLOWED_MIMES = {
   docx: [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ],
+  png: ["image/png"],
   txt: ["text/plain"],
   md: ["text/markdown", "text/plain"],
 };
@@ -110,6 +113,28 @@ function extractTextFromPlainText(buffer: Buffer): string {
 }
 
 /**
+ * Extract text/description from PNG image using Gemini AI
+ */
+async function extractTextFromPng(buffer: Buffer): Promise<string> {
+  try {
+    // Convert buffer to base64
+    const base64Data = buffer.toString("base64");
+    const dataUrl = `data:image/png;base64,${base64Data}`;
+    
+    // Use Gemini to analyze the image
+    const result = await analyzeImage(
+      dataUrl,
+      "Extract and describe all text, information, and visual content from this image. If there is any text in the image, transcribe it exactly. Also describe what you see in the image including objects, people, colors, and layout."
+    );
+    
+    return result.analysis || "";
+  } catch (error: any) {
+    console.error("PNG analysis error:", error);
+    throw new Error(`Failed to analyze PNG image: ${error.message}`);
+  }
+}
+
+/**
  * Chunk text into smaller segments for better context management
  */
 function chunkText(text: string, maxChunkSize: number = MAX_CHUNK_SIZE): string[] {
@@ -166,6 +191,7 @@ function getFileType(filename: string, mimeType: string): string {
   const extensionMap: Record<string, string> = {
     pdf: "pdf",
     docx: "docx",
+    png: "png",
     txt: "txt",
     md: "md",
     markdown: "md",
@@ -180,6 +206,7 @@ function getFileType(filename: string, mimeType: string): string {
   const mimeMap: Record<string, string> = {
     "application/pdf": "pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "image/png": "png",
     "text/plain": "txt",
     "text/markdown": "md",
   };
@@ -203,7 +230,7 @@ export async function processDocument(
   const fileType = getFileType(originalname, mimetype);
   
   if (fileType === "unknown") {
-    throw new Error(`Unsupported file type. Supported formats: PDF, DOCX, TXT, MD`);
+    throw new Error(`Unsupported file type. Supported formats: PDF, DOCX, PNG, TXT, MD`);
   }
   
   // Validate MIME type matches determined file type
@@ -225,6 +252,9 @@ export async function processDocument(
       break;
     case "docx":
       extractedText = await extractTextFromDocx(buffer);
+      break;
+    case "png":
+      extractedText = await extractTextFromPng(buffer);
       break;
     case "txt":
     case "md":
