@@ -1,4 +1,4 @@
-# Newsletter Guide - Using Resend with ModelHub
+# Newsletter Guide - Using Resend with ModelAI
 
 This guide explains how to send newsletters to your subscribers using the built-in Resend integration.
 
@@ -22,8 +22,8 @@ curl -X POST https://your-app.replit.dev/api/admin/newsletter/send \
   -H "Content-Type: application/json" \
   -H "Cookie: your-session-cookie" \
   -d '{
-    "subject": "🚀 ModelHub Updates - December 2024",
-    "headline": "What'\''s New at ModelHub",
+    "subject": "🚀 ModelAI Updates - December 2024",
+    "headline": "What'\''s New at ModelAI",
     "content": "<p>Hello! We'\''re excited to share the latest updates...</p><ul><li>New AI models available</li><li>Improved performance</li><li>Bug fixes and enhancements</li></ul>",
     "ctaText": "Explore New Features",
     "ctaUrl": "https://your-app.replit.dev/models"
@@ -154,7 +154,7 @@ POST /api/admin/newsletter/send
 ## Email Template Features
 
 The built-in newsletter template includes:
-- ✅ **Branded header** with ModelHub logo and coral accent (#FF6B4A)
+- ✅ **Branded header** with ModelAI logo and coral accent (#FF6B4A)
 - ✅ **Personalization** using subscriber's first name
 - ✅ **HTML content** support with rich formatting
 - ✅ **Optional CTA button** for driving actions

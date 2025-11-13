@@ -17,7 +17,7 @@ export async function sendWelcomeEmail(to: string, username: string, subscriptio
     const { data, error } = await client.emails.send({
       from: fromEmail,
       to,
-      subject: 'Welcome to ModelHub!',
+      subject: 'Welcome to ModelAI!',
       html: emailHtml,
     });
 

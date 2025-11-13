@@ -306,7 +306,7 @@ export default function Admin() {
             <Label htmlFor="newsletter-subject">Subject Line</Label>
             <Input
               id="newsletter-subject"
-              placeholder="e.g., 🚀 ModelHub Updates - December 2024"
+              placeholder="e.g., 🚀 ModelAI Updates - December 2024"
               value={newsletterForm.subject}
               onChange={(e) => setNewsletterForm({...newsletterForm, subject: e.target.value})}
               disabled={sendNewsletterMutation.isPending}
@@ -318,7 +318,7 @@ export default function Admin() {
             <Label htmlFor="newsletter-headline">Headline</Label>
             <Input
               id="newsletter-headline"
-              placeholder="e.g., What's New at ModelHub"
+              placeholder="e.g., What's New at ModelAI"
               value={newsletterForm.headline}
               onChange={(e) => setNewsletterForm({...newsletterForm, headline: e.target.value})}
               disabled={sendNewsletterMutation.isPending}

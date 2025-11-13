@@ -22,13 +22,13 @@ export const WelcomeEmail = ({
   return (
     <Html>
       <Head />
-      <Preview>Welcome to ModelHub - Your AI Model Management Platform</Preview>
+      <Preview>Welcome to ModelAI - Your AI Model Management Platform</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={h1}>Welcome to ModelHub! 🎉</Heading>
+          <Heading style={h1}>Welcome to ModelAI! 🎉</Heading>
           <Text style={text}>Hi {username},</Text>
           <Text style={text}>
-            Thank you for joining ModelHub, the premier AI model management platform for businesses. 
+            Thank you for joining ModelAI, the premier AI model management platform for businesses. 
             We're excited to have you onboard!
           </Text>
           <Text style={text}>

@@ -24,8 +24,8 @@ interface NewsletterEmailProps {
 
 export const NewsletterEmail = ({
   username = 'User',
-  subject = 'ModelHub Newsletter',
-  headline = 'What\'s New at ModelHub',
+  subject = 'ModelAI Newsletter',
+  headline = 'What\'s New at ModelAI',
   content = '',
   ctaText,
   ctaUrl,
@@ -37,7 +37,7 @@ export const NewsletterEmail = ({
       <Body style={main}>
         <Container style={container}>
           <Section style={header}>
-            <Heading style={logo}>ModelHub</Heading>
+            <Heading style={logo}>ModelAI</Heading>
             <Text style={tagline}>AI Model Management Platform</Text>
           </Section>
           
@@ -59,7 +59,7 @@ export const NewsletterEmail = ({
           
           <Section style={footer}>
             <Text style={footerText}>
-              You're receiving this email because you subscribed to the ModelHub newsletter.
+              You're receiving this email because you subscribed to the ModelAI newsletter.
             </Text>
             <Text style={footerText}>
               <Link href="https://modelhub.app/settings" style={link}>
@@ -71,7 +71,7 @@ export const NewsletterEmail = ({
               </Link>
             </Text>
             <Text style={footerCopyright}>
-              © {new Date().getFullYear()} ModelHub. All rights reserved.
+              © {new Date().getFullYear()} ModelAI. All rights reserved.
             </Text>
           </Section>
         </Container>
