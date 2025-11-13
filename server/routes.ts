@@ -95,6 +95,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/models/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
+      
+      // Get the current model state to create a version snapshot
+      const currentModel = await storage.getAIModel(userId, req.params.id);
+      if (!currentModel) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+
+      // Create a version snapshot of the current state before updating
+      const latestVersion = await storage.getLatestVersionNumber(req.params.id);
+      const newVersionNumber = latestVersion + 1;
+      
+      await storage.createModelVersion({
+        modelId: req.params.id,
+        versionNumber: newVersionNumber,
+        name: currentModel.name,
+        description: currentModel.description,
+        systemPrompt: currentModel.systemPrompt,
+        model: currentModel.model,
+        temperature: currentModel.temperature,
+        maxTokens: currentModel.maxTokens,
+        template: currentModel.template,
+        category: currentModel.category,
+        tags: currentModel.tags,
+        changeDescription: req.body.changeDescription || "Model updated",
+        createdBy: userId,
+      });
+
+      // Now update the model
       const model = await storage.updateAIModel(userId, req.params.id, req.body);
       if (!model) {
         return res.status(404).json({ error: "Model not found" });
