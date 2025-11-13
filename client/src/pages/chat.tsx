@@ -311,6 +311,7 @@ export default function Chat() {
             isLoading={isStreaming}
             disabled={modelId === "new"}
             disabledMessage="Save your model first"
+            canUseImages={true}
             onGenerateImage={(prompt) => {
               generateImageMutation.mutate(prompt);
             }}
