@@ -99,11 +99,15 @@ export async function* streamChat(
   }
 }
 
-export async function generateImage(prompt: string): Promise<{ imageUrl: string; imageType: string }> {
+export async function generateImage(
+  modelId: string,
+  prompt: string,
+  conversationId?: string
+): Promise<{ imageUrl: string; imageType: string; conversationId?: string }> {
   const response = await fetch("/api/chat/generate-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ modelId, prompt, conversationId }),
   });
 
   if (!response.ok) {
@@ -114,11 +118,16 @@ export async function generateImage(prompt: string): Promise<{ imageUrl: string;
   return response.json();
 }
 
-export async function analyzeImage(imageData: string, prompt?: string): Promise<{ analysis: string }> {
+export async function analyzeImage(
+  modelId: string,
+  imageData: string,
+  prompt?: string,
+  conversationId?: string
+): Promise<{ analysis: string; conversationId?: string }> {
   const response = await fetch("/api/chat/analyze-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageData, prompt }),
+    body: JSON.stringify({ modelId, imageData, prompt, conversationId }),
   });
 
   if (!response.ok) {

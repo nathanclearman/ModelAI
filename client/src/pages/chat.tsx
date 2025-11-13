@@ -126,20 +126,18 @@ export default function Chat() {
 
   const generateImageMutation = useMutation({
     mutationFn: async (prompt: string) => {
-      return generateImage(prompt);
+      if (!modelId) throw new Error("Model ID is required");
+      return generateImage(modelId, prompt, conversationId);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       
-      const imageMessage: Message = {
-        role: "assistant",
-        content: `Generated image from prompt: "${data.imageUrl}"`,
-        imageUrl: data.imageUrl,
-        imageType: data.imageType as "generated" | "upload",
-        timestamp: new Date().toISOString(),
-      };
+      if (data.conversationId && data.conversationId !== conversationId) {
+        setConversationId(data.conversationId);
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      }
       
-      setMessages((prev) => [...prev, imageMessage]);
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
       
       toast({
         title: "Success",
@@ -157,18 +155,18 @@ export default function Chat() {
 
   const analyzeImageMutation = useMutation({
     mutationFn: async ({ imageData, prompt }: { imageData: string; prompt?: string }) => {
-      return analyzeImage(imageData, prompt);
+      if (!modelId) throw new Error("Model ID is required");
+      return analyzeImage(modelId, imageData, prompt, conversationId);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       
-      const analysisMessage: Message = {
-        role: "assistant",
-        content: data.analysis,
-        timestamp: new Date().toISOString(),
-      };
+      if (data.conversationId && data.conversationId !== conversationId) {
+        setConversationId(data.conversationId);
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      }
       
-      setMessages((prev) => [...prev, analysisMessage]);
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
       
       toast({
         title: "Success",

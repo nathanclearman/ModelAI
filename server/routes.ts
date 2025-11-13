@@ -8,6 +8,7 @@ import { generateApiKey, hashApiKey } from "./utils/apiKey";
 import { calculateCost } from "./utils/costCalculator";
 import { geminiService } from "./services/geminiService";
 import { requireImageAccess, checkImageQuota, incrementImageUsage } from "./middleware/imageAccess";
+import { imageStore } from "./services/imageStore";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -444,13 +445,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate image using Gemini
       const { imageData, mimeType } = await geminiService.generateImage(prompt);
       
+      // Store the image and get a public URL
+      const { publicUrl } = await imageStore.store(imageData, userId, "generated", prompt);
+      
       // Increment image usage for non-admin users
       const user = await storage.getUserById(userId);
       if (user && user.isAdmin !== 1) {
         await incrementImageUsage(userId);
       }
 
-      // Create message with generated image
+      // Create messages for conversation history
       const userMessage: Message = {
         role: "user",
         content: prompt,
@@ -461,7 +465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: "assistant",
         content: `I've generated an image based on your prompt: "${prompt}"`,
         timestamp: new Date().toISOString(),
-        imageUrl: imageData,
+        imageUrl: publicUrl,
         imageType: "generated"
       };
 
@@ -490,9 +494,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({
-        message: assistantMessage,
-        conversationId: savedConversation?.id,
-        imageUrl: imageData
+        imageUrl: publicUrl,
+        imageType: "generated",
+        conversationId: savedConversation?.id
       });
     } catch (error: any) {
       console.error("Error generating image:", error);
@@ -504,21 +508,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat/analyze-image", isAuthenticated, requireImageAccess, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const { modelId, imageUrl, prompt, conversationId } = req.body;
+      const { modelId, imageData, prompt, conversationId } = req.body;
 
-      if (!modelId || !imageUrl) {
-        return res.status(400).json({ error: "Model ID and image URL are required" });
+      if (!modelId || !imageData) {
+        return res.status(400).json({ error: "Model ID and image data are required" });
       }
 
-      // Analyze image using Gemini
-      const { analysis } = await geminiService.analyzeImage(imageUrl, prompt);
+      // Store the uploaded image
+      const { publicUrl } = await imageStore.store(imageData, userId, "upload");
 
-      // Create messages
+      // Analyze image using Gemini
+      const { analysis } = await geminiService.analyzeImage(imageData, prompt);
+
+      // Increment image usage for non-admin users
+      const user = await storage.getUserById(userId);
+      if (user && user.isAdmin !== 1) {
+        await incrementImageUsage(userId);
+      }
+
+      // Create messages for conversation history
       const userMessage: Message = {
         role: "user",
         content: prompt || "Analyze this image",
         timestamp: new Date().toISOString(),
-        imageUrl,
+        imageUrl: publicUrl,
         imageType: "upload"
       };
 
@@ -553,7 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({
-        message: assistantMessage,
+        analysis,
         conversationId: savedConversation?.id
       });
     } catch (error: any) {
