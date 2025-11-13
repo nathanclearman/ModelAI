@@ -1778,6 +1778,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Workflow endpoints
+  app.get("/api/workflows", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workflows = await storage.getUserWorkflows(userId);
+      res.json(workflows);
+    } catch (error) {
+      console.error("Error fetching workflows:", error);
+      res.status(500).json({ error: "Failed to fetch workflows" });
+    }
+  });
+
+  app.post("/api/workflows", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workflow = await storage.createWorkflow(userId, req.body);
+      res.json(workflow);
+    } catch (error) {
+      console.error("Error creating workflow:", error);
+      res.status(500).json({ error: "Failed to create workflow" });
+    }
+  });
+
+  app.get("/api/workflows/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workflow = await storage.getWorkflow(userId, req.params.id);
+      if (!workflow) {
+        return res.status(404).json({ error: "Workflow not found" });
+      }
+      res.json(workflow);
+    } catch (error) {
+      console.error("Error fetching workflow:", error);
+      res.status(500).json({ error: "Failed to fetch workflow" });
+    }
+  });
+
+  app.patch("/api/workflows/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const workflow = await storage.updateWorkflow(userId, req.params.id, req.body);
+      if (!workflow) {
+        return res.status(404).json({ error: "Workflow not found" });
+      }
+      res.json(workflow);
+    } catch (error) {
+      console.error("Error updating workflow:", error);
+      res.status(500).json({ error: "Failed to update workflow" });
+    }
+  });
+
+  app.delete("/api/workflows/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const success = await storage.deleteWorkflow(userId, req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Workflow not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting workflow:", error);
+      res.status(500).json({ error: "Failed to delete workflow" });
+    }
+  });
+
+  app.post("/api/workflows/:id/execute", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { workflowEngine } = await import("./workflowEngine");
+      const run = await workflowEngine.executeWorkflow(req.params.id, userId, req.body.input);
+      res.json(run);
+    } catch (error: any) {
+      console.error("Error executing workflow:", error);
+      res.status(500).json({ error: error.message || "Failed to execute workflow" });
+    }
+  });
+
+  app.get("/api/workflows/:id/runs", isAuthenticated, async (req: any, res) => {
+    try {
+      const runs = await storage.getWorkflowRuns(req.params.id);
+      res.json(runs);
+    } catch (error) {
+      console.error("Error fetching workflow runs:", error);
+      res.status(500).json({ error: "Failed to fetch workflow runs" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
