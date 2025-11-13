@@ -183,6 +183,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stripe checkout session
   app.post('/api/create-checkout-session', isAuthenticated, async (req: any, res) => {
     try {
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : 'http://localhost:5000';
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -199,15 +203,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         ],
         mode: 'payment',
-        success_url: `${req.headers.origin}/settings?payment=success`,
-        cancel_url: `${req.headers.origin}/settings?payment=cancelled`,
+        success_url: `${baseUrl}/settings?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/settings?payment=cancelled`,
         customer_email: req.user.email,
+        metadata: {
+          userId: req.user.id,
+        },
       });
 
       res.json({ url: session.url });
     } catch (error: any) {
       console.error("Error creating checkout session:", error);
       res.status(500).json({ error: "Failed to create checkout session: " + error.message });
+    }
+  });
+
+  // Stripe webhook endpoint
+  app.post('/api/webhook/stripe', async (req: any, res) => {
+    const sig = req.headers['stripe-signature'];
+
+    if (!sig) {
+      return res.status(400).send('Missing stripe-signature header');
+    }
+
+    let event;
+
+    try {
+      const rawBody = req.rawBody;
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET || ''
+      );
+    } catch (err: any) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as any;
+
+      if (session.payment_status === 'paid' && session.metadata?.userId) {
+        try {
+          await storage.processStripePayment(
+            session.id,
+            session.metadata.userId,
+            'pro',
+            1000,
+            100
+          );
+          console.log(`Successfully upgraded user ${session.metadata.userId} to Pro tier`);
+        } catch (error: any) {
+          if (error.message.includes('already processed')) {
+            console.log(`Payment session ${session.id} already processed`);
+          } else {
+            console.error('Error processing payment:', error);
+          }
+        }
+      }
+    }
+
+    res.json({ received: true });
+  });
+
+  // Verify Stripe payment status (read-only check)
+  app.get('/api/verify-payment', isAuthenticated, async (req: any, res) => {
+    try {
+      const { session_id } = req.query;
+
+      if (!session_id || typeof session_id !== 'string') {
+        return res.status(400).json({ error: "Session ID is required" });
+      }
+
+      const isProcessed = await storage.isStripeSessionProcessed(session_id);
+
+      if (isProcessed) {
+        res.json({
+          processed: true,
+          message: "Payment processed successfully! Please refresh the page to see your upgraded account.",
+        });
+      } else {
+        res.status(202).json({ 
+          processed: false,
+          message: "Payment is being processed. Please wait a moment and try again.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error verifying payment:", error);
+      res.status(500).json({ error: "Failed to verify payment: " + error.message });
     }
   });
 

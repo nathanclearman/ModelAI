@@ -141,13 +141,26 @@ export default function Settings() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const payment = params.get('payment');
+    const sessionId = params.get('session_id');
     
-    if (payment === 'success') {
-      toast({
-        title: "Payment Successful",
-        description: "Thank you for your payment! Your account will be updated shortly.",
-      });
-      setLocation('/settings');
+    if (payment === 'success' && sessionId) {
+      apiRequest("GET", `/api/verify-payment?session_id=${sessionId}`, {})
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+          toast({
+            title: "Payment Successful",
+            description: "Your account has been upgraded to Pro tier!",
+          });
+          setLocation('/settings');
+        })
+        .catch((error) => {
+          toast({
+            variant: "destructive",
+            title: "Verification Failed",
+            description: error.message || "Failed to verify payment. Please contact support.",
+          });
+          setLocation('/settings');
+        });
     } else if (payment === 'cancelled') {
       toast({
         variant: "destructive",

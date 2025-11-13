@@ -13,6 +13,7 @@ import {
   apiKeys,
   modelVersions,
   imageAssets,
+  stripeCheckoutSessions,
   type User,
   type UpsertUser,
   type AIModel,
@@ -32,6 +33,7 @@ import {
   type InsertModelVersion,
   type ImageAsset,
   type InsertImageAsset,
+  type StripeCheckoutSession,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -60,6 +62,10 @@ export interface IStorage {
   updateUser(id: string, data: { firstName?: string | null; lastName?: string | null; companyName?: string | null }): Promise<User | undefined>;
   updateNewsletterSubscription(userId: string, subscribed: boolean): Promise<User | undefined>;
   applyCoupon(userId: string, couponCode: string, tier: string, imageQuota: number, messageQuota: number): Promise<User | undefined>;
+  updateUserSubscription(userId: string, tier: string, messageQuota: number, imageQuota: number): Promise<User | undefined>;
+  isStripeSessionProcessed(sessionId: string): Promise<boolean>;
+  markStripeSessionProcessed(sessionId: string, userId: string): Promise<void>;
+  processStripePayment(sessionId: string, userId: string, tier: string, messageQuota: number, imageQuota: number): Promise<User | undefined>;
   getNewsletterSubscribers(): Promise<Array<{ email: string; firstName: string | null; lastName: string | null }>>;
   incrementUserMessages(userId: string): Promise<void>;
   createVerificationToken(userId: string, token: string): Promise<void>;
@@ -220,6 +226,92 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return result[0];
+  }
+
+  async updateUserSubscription(userId: string, tier: string, messageQuota: number, imageQuota: number): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({
+        subscriptionTier: tier,
+        subscriptionStatus: 'active',
+        messageQuota,
+        imageQuota,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  async isStripeSessionProcessed(sessionId: string): Promise<boolean> {
+    const result = await db
+      .select()
+      .from(stripeCheckoutSessions)
+      .where(eq(stripeCheckoutSessions.sessionId, sessionId))
+      .limit(1);
+    return result.length > 0 && result[0].processed === 1;
+  }
+
+  async markStripeSessionProcessed(sessionId: string, userId: string): Promise<void> {
+    await db
+      .insert(stripeCheckoutSessions)
+      .values({
+        sessionId,
+        userId,
+        processed: 1,
+        processedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: stripeCheckoutSessions.sessionId,
+        set: {
+          processed: 1,
+          processedAt: new Date(),
+        },
+      });
+  }
+
+  async processStripePayment(sessionId: string, userId: string, tier: string, messageQuota: number, imageQuota: number): Promise<User | undefined> {
+    return await db.transaction(async (tx) => {
+      const existingSession = await tx
+        .select()
+        .from(stripeCheckoutSessions)
+        .where(eq(stripeCheckoutSessions.sessionId, sessionId))
+        .limit(1);
+
+      if (existingSession.length > 0 && existingSession[0].processed === 1) {
+        throw new Error("Payment session already processed");
+      }
+
+      await tx
+        .insert(stripeCheckoutSessions)
+        .values({
+          sessionId,
+          userId,
+          processed: 1,
+          processedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: stripeCheckoutSessions.sessionId,
+          set: {
+            processed: 1,
+            processedAt: new Date(),
+          },
+        });
+
+      const result = await tx
+        .update(users)
+        .set({
+          subscriptionTier: tier,
+          subscriptionStatus: 'active',
+          messageQuota,
+          imageQuota,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId))
+        .returning();
+
+      return result[0];
+    });
   }
 
   async getNewsletterSubscribers(): Promise<Array<{ email: string; firstName: string | null; lastName: string | null }>> {

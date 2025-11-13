@@ -14,6 +14,17 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
+// Stripe checkout sessions tracking (prevent replay attacks)
+export const stripeCheckoutSessions = pgTable("stripe_checkout_sessions", {
+  sessionId: varchar("session_id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  processed: integer("processed").notNull().default(0),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type StripeCheckoutSession = typeof stripeCheckoutSessions.$inferSelect;
+
 // Subscription tier enum
 export const subscriptionTiers = ["free", "pro", "enterprise"] as const;
 export type SubscriptionTier = typeof subscriptionTiers[number];
