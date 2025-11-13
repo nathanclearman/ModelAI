@@ -190,3 +190,34 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
 
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type ApiKey = typeof apiKeys.$inferSelect;
+
+// Model versions for tracking changes over time
+// Note: versionNumber is auto-incremented per model within transactions to prevent race conditions
+export const modelVersions = pgTable("model_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  modelId: varchar("model_id").notNull(),
+  versionNumber: integer("version_number").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  systemPrompt: text("system_prompt").notNull(),
+  model: text("model").notNull(),
+  temperature: integer("temperature").notNull().default(70),
+  maxTokens: integer("max_tokens").notNull().default(1000),
+  template: text("template"),
+  category: text("category"),
+  tags: text("tags").array(),
+  changeDescription: text("change_description"),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_model_versions_model").on(table.modelId),
+  index("idx_model_versions_created").on(table.createdAt),
+]);
+
+export const insertModelVersionSchema = createInsertSchema(modelVersions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertModelVersion = z.infer<typeof insertModelVersionSchema>;
+export type ModelVersion = typeof modelVersions.$inferSelect;
