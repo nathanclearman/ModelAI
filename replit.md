@@ -115,6 +115,19 @@ The platform includes:
   - Subscriber count display: Shows real-time count of newsletter subscribers
   - Email validation: Required fields (subject, headline, content) with HTML support
   - Rate limiting: Sequential sending with delays to avoid hitting Resend limits
+- **Workflow Automation Builder:** Chain multiple AI tasks together to create automated workflows.
+  - Visual workflow editor with drag-and-drop step configuration
+  - Supported step types: AI Chat, Image Generation, Webhook, Delay
+  - Variable resolution using {{variable}} syntax to pass data between steps
+  - Sequential execution engine with context passing
+  - Three trigger types: Manual, Scheduled, Webhook
+  - Enable/disable workflows without deletion
+  - Workflow execution history with run status tracking (running/completed/failed)
+  - Step reordering and configuration in UI
+  - Database schema: workflows and workflow_runs tables
+  - API endpoints: GET/POST /api/workflows, GET/PATCH/DELETE /api/workflows/:id, POST /api/workflows/:id/execute, GET /api/workflows/:id/runs
+  - Error handling with detailed step-level failure messages
+  - Integration with existing AI models, image generation, and webhook capabilities
 
 ### System Design Choices
 - **Full-Stack TypeScript:** Ensures type safety across both frontend and backend.
