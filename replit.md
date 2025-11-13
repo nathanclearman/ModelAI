@@ -60,8 +60,9 @@ The platform includes:
   - Quota tracking (10 images for Free tier, 100 for Pro, 1000 for Enterprise)
   - Temporary local storage with 24-hour expiration
   - Available to all authenticated users with quota enforcement
-- **Document Analysis:** Upload and extract text from documents for AI-powered analysis (development feature).
-  - Support for PDF, DOCX, TXT, and Markdown files
+- **Document Analysis:** Upload and extract text from documents and images for AI-powered analysis (development feature).
+  - Support for PDF, DOCX, PNG, TXT, and Markdown files
+  - PNG image analysis using Gemini AI vision (extracts text via OCR and describes visual content)
   - 10MB file size limit
   - Text extraction with automatic chunking (3000 characters per chunk)
   - Security: MIME type validation, magic byte verification, filename sanitization
