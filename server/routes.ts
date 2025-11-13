@@ -330,11 +330,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // AI Model Routes (all protected)
   
+  // Helper function to seed default models for new users
+  async function seedDefaultModels(userId: string) {
+    const defaultModels = [
+      {
+        name: "General Assistant",
+        description: "A versatile AI assistant for general tasks",
+        systemPrompt: "You are a helpful, friendly, and knowledgeable AI assistant. Provide clear, accurate, and concise responses.",
+        model: "gpt-4o",
+        temperature: 70,
+        maxTokens: 1000,
+      },
+      {
+        name: "Code Helper",
+        description: "Specialized in programming and technical questions",
+        systemPrompt: "You are an expert programming assistant. Help users write, debug, and understand code. Provide clear explanations and best practices.",
+        model: "gpt-4o",
+        temperature: 50,
+        maxTokens: 2000,
+      },
+      {
+        name: "Creative Writer",
+        description: "For creative writing and content generation",
+        systemPrompt: "You are a creative writing assistant. Help users craft engaging stories, articles, and creative content with flair and imagination.",
+        model: "gpt-4o",
+        temperature: 90,
+        maxTokens: 1500,
+      },
+    ];
+
+    const createdModels = [];
+    for (const modelData of defaultModels) {
+      const model = await storage.createAIModel(userId, modelData);
+      createdModels.push(model);
+    }
+    return createdModels;
+  }
+  
   // Get all AI models for the authenticated user
   app.get("/api/models", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const models = await storage.getAllAIModels(userId);
+      let models = await storage.getAllAIModels(userId);
+      
+      // Auto-seed default models if user has none
+      if (models.length === 0) {
+        console.log(`Seeding default models for user ${userId}`);
+        models = await seedDefaultModels(userId);
+      }
+      
       res.json(models);
     } catch (error) {
       console.error("Error fetching models:", error);
