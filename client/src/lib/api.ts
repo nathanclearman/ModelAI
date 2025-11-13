@@ -98,3 +98,33 @@ export async function* streamChat(
     }
   }
 }
+
+export async function generateImage(prompt: string): Promise<{ imageUrl: string; imageType: string }> {
+  const response = await fetch("/api/chat/generate-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to generate image");
+  }
+
+  return response.json();
+}
+
+export async function analyzeImage(imageData: string, prompt?: string): Promise<{ analysis: string }> {
+  const response = await fetch("/api/chat/analyze-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageData, prompt }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to analyze image");
+  }
+
+  return response.json();
+}

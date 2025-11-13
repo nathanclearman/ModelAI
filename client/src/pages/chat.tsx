@@ -6,9 +6,9 @@ import { ModelConfigPanel, type ModelConfig } from "@/components/model-config-pa
 import { ModelVersionHistory } from "@/components/model-version-history";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Settings, AlertTriangle } from "lucide-react";
-import { streamChat, createModel, updateModel } from "@/lib/api";
-import { type AIModel, type Message } from "@shared/schema";
+import { ArrowLeft, Settings, AlertTriangle, Image as ImageIcon } from "lucide-react";
+import { streamChat, createModel, updateModel, generateImage, analyzeImage } from "@/lib/api";
+import { type AIModel, type Message, type User } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -28,6 +28,10 @@ export default function Chat() {
     const apiKey = sessionStorage.getItem("openai_api_key");
     setHasApiKey(!!apiKey);
   }, []);
+
+  const { data: user } = useQuery<User>({
+    queryKey: ["/api/auth/user"],
+  });
 
   const { data: model, isLoading } = useQuery<AIModel>({
     queryKey: ["/api/models", modelId],
@@ -119,6 +123,66 @@ export default function Chat() {
       setIsStreaming(false);
     }
   };
+
+  const generateImageMutation = useMutation({
+    mutationFn: async (prompt: string) => {
+      return generateImage(prompt);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      
+      const imageMessage: Message = {
+        role: "assistant",
+        content: `Generated image from prompt: "${data.imageUrl}"`,
+        imageUrl: data.imageUrl,
+        imageType: data.imageType as "generated" | "upload",
+        timestamp: new Date().toISOString(),
+      };
+      
+      setMessages((prev) => [...prev, imageMessage]);
+      
+      toast({
+        title: "Success",
+        description: "Image generated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Image Generation Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const analyzeImageMutation = useMutation({
+    mutationFn: async ({ imageData, prompt }: { imageData: string; prompt?: string }) => {
+      return analyzeImage(imageData, prompt);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      
+      const analysisMessage: Message = {
+        role: "assistant",
+        content: data.analysis,
+        timestamp: new Date().toISOString(),
+      };
+      
+      setMessages((prev) => [...prev, analysisMessage]);
+      
+      toast({
+        title: "Success",
+        description: "Image analyzed successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Image Analysis Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const saveModelMutation = useMutation({
     mutationFn: async (config: ModelConfig) => {
@@ -212,6 +276,33 @@ export default function Chat() {
         </Alert>
       )}
 
+      {user && user.subscriptionTier === "free" && (
+        <Alert className="border-primary/50 bg-primary/10" data-testid="alert-image-quota">
+          <ImageIcon className="h-4 w-4 text-primary" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-primary-foreground/80">
+              Image features require a premium subscription. Upgrade to Pro or Enterprise to generate and analyze images.
+            </span>
+            <Link href="/settings">
+              <Button variant="default" size="sm" className="ml-4" data-testid="button-upgrade">
+                Upgrade Now
+              </Button>
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {user && user.subscriptionTier !== "free" && (
+        <Alert className="border-muted" data-testid="alert-image-usage">
+          <ImageIcon className="h-4 w-4" />
+          <AlertDescription>
+            <span className="text-muted-foreground">
+              Image quota: {user.imagesUsed || 0} / {user.imageQuota} used
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="h-[600px]">
           <ChatInterface
@@ -219,6 +310,12 @@ export default function Chat() {
             initialMessages={messages}
             onSendMessage={handleSendMessage}
             isLoading={isStreaming}
+            onGenerateImage={(prompt) => {
+              generateImageMutation.mutate(prompt);
+            }}
+            onAnalyzeImage={(imageData, prompt) => {
+              analyzeImageMutation.mutate({ imageData, prompt });
+            }}
           />
         </div>
         <div className="space-y-6">
