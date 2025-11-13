@@ -131,6 +131,7 @@ export interface IStorage {
   createModelVersion(version: InsertModelVersion): Promise<ModelVersion>;
   getLatestVersionNumber(modelId: string): Promise<number>;
   restoreModelVersion(userId: string, modelId: string, versionNumber: number): Promise<AIModel | undefined>;
+  deleteModelVersion(versionId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -766,6 +767,14 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updated;
+  }
+
+  async deleteModelVersion(versionId: string): Promise<boolean> {
+    const result = await db
+      .delete(modelVersions)
+      .where(eq(modelVersions.id, versionId))
+      .returning();
+    return result.length > 0;
   }
 }
 

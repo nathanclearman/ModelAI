@@ -3,6 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ChatInterface } from "@/components/chat-interface";
 import { ModelConfigPanel, type ModelConfig } from "@/components/model-config-panel";
+import { ModelVersionHistory } from "@/components/model-version-history";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Settings, AlertTriangle } from "lucide-react";
@@ -220,26 +221,31 @@ export default function Chat() {
             isLoading={isStreaming}
           />
         </div>
-        <ModelConfigPanel
-          initialConfig={
-            model
-              ? {
-                  name: model.name,
-                  model: model.model,
-                  temperature: model.temperature,
-                  maxTokens: model.maxTokens,
-                  systemPrompt: model.systemPrompt,
-                }
-              : {
-                  name: "",
-                  model: "gpt-4o",
-                  temperature: 70,
-                  maxTokens: 1000,
-                  systemPrompt: "",
-                }
-          }
-          onSave={(config) => saveModelMutation.mutate(config)}
-        />
+        <div className="space-y-6">
+          <ModelConfigPanel
+            initialConfig={
+              model
+                ? {
+                    name: model.name,
+                    model: model.model,
+                    temperature: model.temperature,
+                    maxTokens: model.maxTokens,
+                    systemPrompt: model.systemPrompt,
+                  }
+                : {
+                    name: "",
+                    model: "gpt-4o",
+                    temperature: 70,
+                    maxTokens: 1000,
+                    systemPrompt: "",
+                  }
+            }
+            onSave={(config) => saveModelMutation.mutate(config)}
+          />
+          {modelId && modelId !== "new" && (
+            <ModelVersionHistory modelId={modelId} />
+          )}
+        </div>
       </div>
     </div>
   );

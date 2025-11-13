@@ -96,6 +96,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id;
       
+      // Validate request body with Zod
+      const validatedData = insertAIModelSchema.partial().parse(req.body);
+      
       // Get the current model state to create a version snapshot
       const currentModel = await storage.getAIModel(userId, req.params.id);
       if (!currentModel) {
@@ -103,33 +106,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create a version snapshot of the current state before updating
+      // This MUST succeed before we proceed with the update to maintain audit trail
       const latestVersion = await storage.getLatestVersionNumber(req.params.id);
       const newVersionNumber = latestVersion + 1;
       
-      await storage.createModelVersion({
-        modelId: req.params.id,
-        versionNumber: newVersionNumber,
-        name: currentModel.name,
-        description: currentModel.description,
-        systemPrompt: currentModel.systemPrompt,
-        model: currentModel.model,
-        temperature: currentModel.temperature,
-        maxTokens: currentModel.maxTokens,
-        template: currentModel.template,
-        category: currentModel.category,
-        tags: currentModel.tags,
-        changeDescription: req.body.changeDescription || "Model updated",
-        createdBy: userId,
-      });
+      try {
+        await storage.createModelVersion({
+          modelId: req.params.id,
+          versionNumber: newVersionNumber,
+          name: currentModel.name,
+          description: currentModel.description,
+          systemPrompt: currentModel.systemPrompt,
+          model: currentModel.model,
+          temperature: currentModel.temperature,
+          maxTokens: currentModel.maxTokens,
+          template: currentModel.template,
+          category: currentModel.category,
+          tags: currentModel.tags,
+          changeDescription: req.body.changeDescription || "Model updated",
+          createdBy: userId,
+        });
+      } catch (versionError) {
+        console.error("Failed to create version snapshot:", versionError);
+        return res.status(500).json({ error: "Failed to create version snapshot. Update cancelled." });
+      }
 
-      // Now update the model
-      const model = await storage.updateAIModel(userId, req.params.id, req.body);
+      // Now update the model with validated data
+      const model = await storage.updateAIModel(userId, req.params.id, validatedData);
       if (!model) {
         return res.status(404).json({ error: "Model not found" });
       }
       res.json(model);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating model:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid model data", details: error.errors });
+      }
       res.status(500).json({ error: "Failed to update model" });
     }
   });
@@ -194,29 +206,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.id;
       const versionNumber = parseInt(req.params.versionNumber);
       
-      // Restore the model to the specified version
-      const restoredModel = await storage.restoreModelVersion(userId, req.params.id, versionNumber);
-      if (!restoredModel) {
-        return res.status(404).json({ error: "Model or version not found" });
+      // Verify the version exists before attempting restore
+      const versionToRestore = await storage.getModelVersion(req.params.id, versionNumber);
+      if (!versionToRestore) {
+        return res.status(404).json({ error: "Version not found" });
       }
 
-      // Create a new version snapshot after restore (for audit trail)
+      // Get current model to verify ownership and capture pre-restore state
+      // Note: In rare concurrent update scenarios, this snapshot might not reflect
+      // the exact state at restore time. Future enhancement: Use database transactions
+      // to ensure atomicity across read-snapshot-restore operations.
+      const currentModel = await storage.getAIModel(userId, req.params.id);
+      if (!currentModel) {
+        return res.status(404).json({ error: "Model not found or access denied" });
+      }
+
+      // Create audit version snapshot of CURRENT state BEFORE restoring
+      // This preserves the pre-restore configuration so it can be accessed later
+      // If this fails, the restore will not proceed
       const latestVersion = await storage.getLatestVersionNumber(req.params.id);
-      await storage.createModelVersion({
-        modelId: req.params.id,
-        versionNumber: latestVersion + 1,
-        name: restoredModel.name,
-        description: restoredModel.description,
-        systemPrompt: restoredModel.systemPrompt,
-        model: restoredModel.model,
-        temperature: restoredModel.temperature,
-        maxTokens: restoredModel.maxTokens,
-        template: restoredModel.template,
-        category: restoredModel.category,
-        tags: restoredModel.tags,
-        changeDescription: `Restored from version ${versionNumber}`,
-        createdBy: userId,
-      });
+      const newVersionNumber = latestVersion + 1;
+      
+      let createdVersionId: string | null = null;
+      try {
+        const auditVersion = await storage.createModelVersion({
+          modelId: req.params.id,
+          versionNumber: newVersionNumber,
+          // Store CURRENT model state (what's being replaced), not the version we're restoring to
+          name: currentModel.name,
+          description: currentModel.description,
+          systemPrompt: currentModel.systemPrompt,
+          model: currentModel.model,
+          temperature: currentModel.temperature,
+          maxTokens: currentModel.maxTokens,
+          template: currentModel.template,
+          category: currentModel.category,
+          tags: currentModel.tags,
+          changeDescription: `Restored from version ${versionNumber}`,
+          createdBy: userId,
+        });
+        createdVersionId = auditVersion.id;
+      } catch (auditError) {
+        console.error("Failed to create audit version for restore:", auditError);
+        return res.status(500).json({ error: "Failed to create audit trail. Restore cancelled." });
+      }
+      
+      // Now restore the model - audit trail is already in place
+      // Wrap in try-catch to ensure cleanup happens even if restoreModelVersion throws
+      let restoredModel;
+      try {
+        restoredModel = await storage.restoreModelVersion(userId, req.params.id, versionNumber);
+      } catch (restoreError) {
+        // Restore threw exception - delete the orphaned audit version
+        if (createdVersionId) {
+          try {
+            await storage.deleteModelVersion(createdVersionId);
+            console.log(`Deleted orphaned audit version ${createdVersionId} after restore exception`);
+          } catch (cleanupError) {
+            console.error("CRITICAL: Failed to cleanup orphaned version after restore exception:", cleanupError);
+          }
+        }
+        console.error("Restore failed with exception:", restoreError);
+        return res.status(500).json({ error: "Failed to restore model state" });
+      }
+      
+      if (!restoredModel) {
+        // Restore returned null/undefined - delete the orphaned audit version
+        if (createdVersionId) {
+          try {
+            await storage.deleteModelVersion(createdVersionId);
+            console.log(`Deleted orphaned audit version ${createdVersionId} after restore returned null`);
+          } catch (cleanupError) {
+            console.error("CRITICAL: Failed to cleanup orphaned version after restore failure:", cleanupError);
+          }
+        }
+        return res.status(500).json({ error: "Failed to restore model state" });
+      }
 
       res.json(restoredModel);
     } catch (error) {
