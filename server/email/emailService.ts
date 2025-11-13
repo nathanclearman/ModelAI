@@ -132,6 +132,7 @@ export async function sendNewsletter(
 ) {
   try {
     const { client, fromEmail } = await getResendClient();
+    console.log(`Sending newsletter from: ${fromEmail} to: ${to}`);
     
     const emailHtml = await render(
       createElement(NewsletterEmail, {
