@@ -125,6 +125,8 @@ export type Message = {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  imageUrl?: string; // Optional image URL or base64 data URL
+  imageType?: "upload" | "generated"; // Track if image was uploaded or AI-generated
 };
 
 // Usage tracking table for analytics
