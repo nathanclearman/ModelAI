@@ -1,4 +1,4 @@
-import { eq, desc, and, sql as drizzleSql, sum, count } from "drizzle-orm";
+import { eq, desc, and, sql, sum, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { neonConfig, Pool } from "@neondatabase/serverless";
 import ws from "ws";
@@ -33,13 +33,26 @@ neonConfig.webSocketConstructor = ws;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);
 
+export type UserCostStat = {
+  userId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  messageQuota: number;
+  messagesUsed: number;
+  totalMessages: number;
+  totalCost: string;
+};
+
 export interface IStorage {
   // User methods
   getUser(id: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: UpsertUser): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, data: { firstName?: string | null; lastName?: string | null; companyName?: string | null }): Promise<User | undefined>;
+  incrementUserMessages(userId: string): Promise<void>;
   
   // AI Model methods (all scoped to userId)
   createAIModel(userId: string, model: InsertAIModel): Promise<AIModel>;
@@ -85,6 +98,7 @@ export interface IStorage {
     totalConversations: number;
     recentUsers: User[];
   }>;
+  getUserCostStats(): Promise<UserCostStat[]>;
   updateUserAdminStatus(userId: string, isAdmin: number): Promise<User | undefined>;
   
   // Workspace methods
@@ -148,6 +162,17 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return result[0];
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    return this.getUser(id);
+  }
+
+  async incrementUserMessages(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ messagesUsed: sql`${users.messagesUsed} + 1` })
+      .where(eq(users.id, userId));
   }
 
   // AI Model methods (all scoped to userId)
@@ -470,6 +495,35 @@ export class DatabaseStorage implements IStorage {
       totalConversations: allConversations.length,
       recentUsers,
     };
+  }
+
+  async getUserCostStats(): Promise<Array<{
+    userId: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    messageQuota: number;
+    messagesUsed: number;
+    totalMessages: number;
+    totalCost: string;
+  }>> {
+    const result = await db
+      .select({
+        userId: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        messageQuota: users.messageQuota,
+        messagesUsed: users.messagesUsed,
+        totalMessages: sql<number>`COALESCE(COUNT(${usageLogs.id}), 0)`,
+        totalCost: sql<string>`COALESCE(SUM(CAST(${usageLogs.costUsd} AS DECIMAL)), 0)`,
+      })
+      .from(users)
+      .leftJoin(usageLogs, eq(users.id, usageLogs.userId))
+      .groupBy(users.id)
+      .orderBy(desc(sql`COALESCE(SUM(CAST(${usageLogs.costUsd} AS DECIMAL)), 0)`));
+    
+    return result;
   }
 
   async updateUserAdminStatus(userId: string, isAdmin: number): Promise<User | undefined> {

@@ -24,6 +24,8 @@ export const users = pgTable("users", {
   companyName: varchar("company_name"),
   profileImageUrl: varchar("profile_image_url"),
   isAdmin: integer("is_admin").notNull().default(0),
+  messageQuota: integer("message_quota").notNull().default(100),
+  messagesUsed: integer("messages_used").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -106,6 +108,7 @@ export const usageLogs = pgTable("usage_logs", {
   completionTokens: integer("completion_tokens").notNull().default(0),
   totalTokens: integer("total_tokens").notNull().default(0),
   model: text("model").notNull(),
+  costUsd: text("cost_usd").notNull().default("0"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

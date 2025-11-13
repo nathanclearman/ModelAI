@@ -5,6 +5,7 @@ import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema,
 import OpenAI from "openai";
 import { isAuthenticated, isAdmin } from "./auth";
 import { generateApiKey, hashApiKey } from "./utils/apiKey";
+import { calculateCost } from "./utils/costCalculator";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -205,6 +206,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Model ID and message are required" });
       }
 
+      // Check usage limits for non-admin users
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!user.isAdmin && user.messagesUsed >= user.messageQuota) {
+        return res.status(429).json({ 
+          error: "Message quota exceeded. Please contact an administrator to increase your quota.",
+          quota: user.messageQuota,
+          used: user.messagesUsed,
+        });
+      }
+
       // Get API key from header or use environment variable as fallback
       const userApiKey = req.headers['x-openai-api-key'] as string;
       const apiKeyToUse = userApiKey || process.env.OPENAI_API_KEY;
@@ -307,8 +322,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Log token usage for analytics
+      // Log token usage for analytics with cost tracking
       if (usageData) {
+        const cost = calculateCost(
+          model.model,
+          usageData.prompt_tokens || 0,
+          usageData.completion_tokens || 0
+        );
+        
         await storage.logUsage({
           userId,
           modelId: model.id,
@@ -317,7 +338,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           completionTokens: usageData.completion_tokens || 0,
           totalTokens: usageData.total_tokens || 0,
           model: model.model,
+          costUsd: cost,
         });
+
+        // Increment message count for non-admin users
+        if (!user.isAdmin) {
+          await storage.incrementUserMessages(userId);
+        }
       }
 
       // Send final event with conversation ID
@@ -350,6 +377,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching admin stats:", error);
       res.status(500).json({ message: "Failed to fetch admin statistics" });
+    }
+  });
+
+  app.get('/api/admin/cost-stats', isAdmin, async (req: any, res) => {
+    try {
+      const costStats = await storage.getUserCostStats();
+      res.json(costStats);
+    } catch (error) {
+      console.error("Error fetching cost stats:", error);
+      res.status(500).json({ message: "Failed to fetch cost statistics" });
     }
   });
 
