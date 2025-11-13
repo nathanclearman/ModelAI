@@ -274,29 +274,20 @@ export default function Chat() {
         </Alert>
       )}
 
-      {user && user.subscriptionTier === "free" && (
-        <Alert className="border-primary/50 bg-primary/10" data-testid="alert-image-quota">
-          <ImageIcon className="h-4 w-4 text-primary" />
-          <AlertDescription className="flex items-center justify-between">
-            <span className="text-primary-foreground/80">
-              Image features require a premium subscription. Upgrade to Pro or Enterprise to generate and analyze images.
-            </span>
-            <Link href="/settings">
-              <Button variant="default" size="sm" className="ml-4" data-testid="button-upgrade">
-                Upgrade Now
-              </Button>
-            </Link>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {user && user.subscriptionTier !== "free" && (
+      {user && (
         <Alert className="border-muted" data-testid="alert-image-usage">
           <ImageIcon className="h-4 w-4" />
-          <AlertDescription>
+          <AlertDescription className="flex items-center justify-between">
             <span className="text-muted-foreground">
               Image quota: {user.imagesUsed || 0} / {user.imageQuota} used
             </span>
+            {user.subscriptionTier === "free" && (
+              <Link href="/settings">
+                <Button variant="outline" size="sm" className="ml-4" data-testid="button-upgrade">
+                  Get More Quota
+                </Button>
+              </Link>
+            )}
           </AlertDescription>
         </Alert>
       )}

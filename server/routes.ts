@@ -7,7 +7,7 @@ import { isAuthenticated, isAdmin } from "./auth";
 import { generateApiKey, hashApiKey } from "./utils/apiKey";
 import { calculateCost } from "./utils/costCalculator";
 import { geminiService } from "./services/geminiService";
-import { requireImageAccess, checkImageQuota, incrementImageUsage } from "./middleware/imageAccess";
+import { checkImageQuota, incrementImageUsage } from "./middleware/imageAccess";
 import { imageStore } from "./services/imageStore";
 import Stripe from "stripe";
 
@@ -647,8 +647,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Image generation endpoint (protected - requires premium/admin access)
-  app.post("/api/chat/generate-image", isAuthenticated, requireImageAccess, checkImageQuota, async (req: any, res) => {
+  // Image generation endpoint (available to all users with quota)
+  app.post("/api/chat/generate-image", isAuthenticated, checkImageQuota, async (req: any, res) => {
     try {
       const userId = req.user.id;
       const { modelId, prompt, conversationId } = req.body;
@@ -719,8 +719,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Image analysis endpoint (protected - requires premium/admin access)
-  app.post("/api/chat/analyze-image", isAuthenticated, requireImageAccess, async (req: any, res) => {
+  // Image analysis endpoint (available to all authenticated users)
+  app.post("/api/chat/analyze-image", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
       const { modelId, imageData, prompt, conversationId } = req.body;
@@ -868,18 +868,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Connection", "keep-alive");
 
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      // GPT-5 and newer models use max_completion_tokens instead of max_tokens
+      const useMaxCompletionTokens = model.model.toLowerCase().includes('gpt-5') || 
+                                      model.model.toLowerCase().includes('o1') ||
+                                      model.model.toLowerCase().includes('o3');
+      
       const stream = await openaiClient.chat.completions.create({
         model: model.model,
         messages: openaiMessages,
         temperature: model.temperature / 100,
-        max_tokens: model.maxTokens,
         stream: true,
         stream_options: { include_usage: true },
-      });
+        ...(useMaxCompletionTokens 
+          ? { max_completion_tokens: model.maxTokens } 
+          : { max_tokens: model.maxTokens }
+        ),
+      } as any);
 
       let fullResponse = "";
       let usageData: any = null;
 
+      // @ts-expect-error - TypeScript incorrectly infers non-streaming type despite stream:true parameter
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || "";
         if (content) {
@@ -1505,15 +1514,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const openai = new OpenAI({ apiKey: openaiApiKey });
       
+      const modelName = model?.model || "gpt-4o-mini";
+      const useMaxCompletionTokens = modelName.toLowerCase().includes('gpt-5') || 
+                                      modelName.toLowerCase().includes('o1') ||
+                                      modelName.toLowerCase().includes('o3');
+      
       const completion = await openai.chat.completions.create({
-        model: model?.model || "gpt-4o-mini",
+        model: modelName,
         messages: [
           { role: "system", content: model?.systemPrompt || "You are a helpful assistant." },
           { role: "user", content: message }
         ],
         temperature: (model?.temperature || 70) / 100,
-        max_tokens: model?.maxTokens || 1000,
-      });
+        ...(useMaxCompletionTokens 
+          ? { max_completion_tokens: model?.maxTokens || 1000 } 
+          : { max_tokens: model?.maxTokens || 1000 }
+        ),
+      } as any);
       
       const response = completion.choices[0]?.message?.content || "";
       
