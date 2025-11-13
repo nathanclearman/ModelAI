@@ -153,12 +153,13 @@ export default function Settings() {
     const sessionId = params.get('session_id');
     
     if (payment === 'success' && sessionId) {
-      apiRequest("GET", `/api/verify-payment?session_id=${sessionId}`, {})
-        .then(() => {
+      apiRequest("GET", `/api/verify-payment?session_id=${sessionId}`)
+        .then(async (response) => {
+          const data = await response.json();
           queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
           toast({
             title: "Payment Successful",
-            description: "Your account has been upgraded to Pro tier!",
+            description: data.message || "Your account has been upgraded to Pro tier!",
           });
           setLocation('/settings');
         })
