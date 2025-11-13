@@ -874,10 +874,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Get the AI model configuration (scoped to user)
+      console.log(`[Chat] Looking up model - userId: ${userId}, modelId: ${modelId}`);
       const model = await storage.getAIModel(userId, modelId);
       if (!model) {
+        console.log(`[Chat] Model not found - userId: ${userId}, modelId: ${modelId}`);
         return res.status(404).json({ error: "Model not found" });
       }
+      console.log(`[Chat] Model found: ${model.name} (${model.model})`);
+    
 
       // Get existing conversation or prepare for new one (scoped to user)
       let conversation = conversationId
