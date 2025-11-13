@@ -54,12 +54,12 @@ The platform includes:
   - Community engagement with usage statistics
 - **Conversation Management:** Real-time streaming chat, conversation history, and export capabilities.
 - **Templates:** Pre-configured AI assistant templates for various use cases.
-- **Image Generation & Analysis (Premium/Admin Only):** AI-powered image generation from text prompts and image analysis using Gemini AI.
+- **Image Generation & Analysis:** AI-powered image generation from text prompts and image analysis using Gemini AI (available to all users).
   - Text-to-image generation with natural language prompts
   - Image upload and AI-powered analysis
-  - Quota tracking (100 images for Pro tier, custom for Enterprise)
+  - Quota tracking (10 images for Free tier, 100 for Pro, 1000 for Enterprise)
   - Temporary local storage with 24-hour expiration
-  - Access control restricted to premium users and admins
+  - Available to all authenticated users with quota enforcement
 - **User Settings:** Account information management, personal OpenAI API key configuration, and newsletter subscription.
   - Newsletter subscription: Opt-in to receive product updates, best practices, and AI tips
   - Newsletter toggle in settings with subscription date tracking
@@ -102,7 +102,7 @@ The platform includes:
 ## External Dependencies
 
 ### AI Service Integration
-- **OpenAI API:** Used for powering AI models, supporting GPT-4o, GPT-4o Mini, GPT-4.1, GPT-5, and fine-tuned models. User-provided API keys are prioritized, with an optional fallback to an environment variable.
+- **OpenAI API:** Used for powering AI models, supporting GPT-4o, GPT-4o Mini, GPT-4.1, GPT-5, GPT-5-mini, GPT-5-nano, o1, o3, and fine-tuned models. GPT-5 and newer reasoning models use max_completion_tokens parameter instead of max_tokens. User-provided API keys are prioritized, with an optional fallback to an environment variable.
 - **Gemini AI:** Used for image generation and analysis features via Replit AI Integrations. No API key required (billed to Replit credits).
 
 ### Third-Party Services
