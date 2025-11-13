@@ -13,16 +13,20 @@ import {
 interface WelcomeEmailProps {
   username: string;
   subscriptionTier: string;
+  verificationToken: string;
 }
 
 export const WelcomeEmail = ({
   username = 'User',
   subscriptionTier = 'Free',
+  verificationToken = '',
 }: WelcomeEmailProps) => {
+  const verificationUrl = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}/verify-email?token=${verificationToken}`;
+  
   return (
     <Html>
       <Head />
-      <Preview>Welcome to ModelAI - Your AI Model Management Platform</Preview>
+      <Preview>Welcome to ModelAI - Verify your email to get started</Preview>
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>Welcome to ModelAI! 🎉</Heading>
@@ -32,7 +36,15 @@ export const WelcomeEmail = ({
             We're excited to have you onboard!
           </Text>
           <Text style={text}>
-            You're currently on the <strong>{subscriptionTier}</strong> plan. Here's what you can do:
+            To get started, please verify your email address by clicking the button below:
+          </Text>
+          <Section style={buttonContainer}>
+            <Button style={button} href={verificationUrl}>
+              Verify Email Address
+            </Button>
+          </Section>
+          <Text style={text}>
+            Once verified, you'll have access to your <strong>{subscriptionTier}</strong> plan with these features:
           </Text>
           <Section style={features}>
             <Text style={feature}>✨ Create and customize AI models</Text>
@@ -41,11 +53,10 @@ export const WelcomeEmail = ({
             <Text style={feature}>🔗 Share models in the marketplace</Text>
             <Text style={feature}>👥 Collaborate with team workspaces</Text>
           </Section>
-          <Section style={buttonContainer}>
-            <Button style={button} href="https://modelhub.app/models">
-              Get Started
-            </Button>
-          </Section>
+          <Text style={footer}>
+            If the button above doesn't work, copy and paste this link into your browser:<br/>
+            {verificationUrl}
+          </Text>
           <Text style={footer}>
             Need help? Reply to this email or visit our support center.
           </Text>

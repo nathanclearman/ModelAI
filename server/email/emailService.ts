@@ -6,18 +6,18 @@ import WelcomeEmail from './templates/welcome';
 import UsageAlertEmail from './templates/usage-alert';
 import NewsletterEmail from './templates/newsletter';
 
-export async function sendWelcomeEmail(to: string, username: string, subscriptionTier: string) {
+export async function sendWelcomeEmail(to: string, username: string, subscriptionTier: string, verificationToken: string) {
   try {
     const { client, fromEmail } = await getResendClient();
     
     const emailHtml = await render(
-      createElement(WelcomeEmail, { username, subscriptionTier })
+      createElement(WelcomeEmail, { username, subscriptionTier, verificationToken })
     );
     
     const { data, error } = await client.emails.send({
       from: fromEmail,
       to,
-      subject: 'Welcome to ModelAI!',
+      subject: 'Welcome to ModelAI - Verify Your Email',
       html: emailHtml,
     });
 
