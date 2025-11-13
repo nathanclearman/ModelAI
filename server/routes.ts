@@ -9,6 +9,9 @@ import { calculateCost } from "./utils/costCalculator";
 import { geminiService } from "./services/geminiService";
 import { checkImageQuota, incrementImageUsage } from "./middleware/imageAccess";
 import { imageStore } from "./services/imageStore";
+import { processDocument } from "./services/documentService";
+import { storeDocument, deleteDocument as deleteDocumentFile } from "./services/documentStore";
+import multer from "multer";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -760,6 +763,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error generating image:", error);
       res.status(500).json({ error: error.message || "Failed to generate image" });
+    }
+  });
+
+  // Configure multer for document uploads
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      // Allowed file types (DOCX only, not legacy DOC)
+      const allowedMimes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
+        'text/markdown',
+      ];
+
+      if (allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`Unsupported file type: ${file.mimetype}. Supported formats: PDF, DOCX, TXT, MD`));
+      }
+    },
+  });
+
+  // Document upload endpoint (available to all authenticated users)
+  app.post("/api/documents/upload", isAuthenticated, upload.single('document'), async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const file = req.file;
+      const { conversationId } = req.body;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Process document and extract text with error handling
+      let processed;
+      try {
+        processed = await processDocument(file);
+      } catch (error: any) {
+        console.error("Document processing error:", error);
+        return res.status(400).json({ 
+          error: "Failed to process document. Please ensure the file is not corrupted or password-protected." 
+        });
+      }
+
+      // Store the file
+      const { storageKey, publicUrl } = await storeDocument(
+        file.buffer,
+        userId,
+        file.originalname
+      );
+
+      // Save document metadata to database
+      const document = await storage.createDocument(userId, {
+        fileName: processed.fileName,
+        fileType: processed.fileType,
+        mimeType: processed.mimeType,
+        storageKey,
+        publicUrl,
+        extractedText: processed.extractedText,
+        textChunks: processed.textChunks,
+        byteSize: processed.byteSize,
+        conversationId: conversationId || null,
+      });
+
+      res.json({
+        id: document.id,
+        fileName: document.fileName,
+        fileType: document.fileType,
+        byteSize: document.byteSize,
+        createdAt: document.createdAt,
+        textPreview: processed.extractedText.slice(0, 200),
+      });
+    } catch (error: any) {
+      console.error("Error uploading document:", error);
+      res.status(500).json({ error: error.message || "Failed to upload document" });
+    }
+  });
+
+  // Get user's documents
+  app.get("/api/documents", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const documents = await storage.getUserDocuments(userId);
+      
+      res.json(documents.map(doc => ({
+        id: doc.id,
+        fileName: doc.fileName,
+        fileType: doc.fileType,
+        byteSize: doc.byteSize,
+        createdAt: doc.createdAt,
+        conversationId: doc.conversationId,
+      })));
+    } catch (error: any) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  // Get specific document with full content
+  app.get("/api/documents/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      const document = await storage.getDocument(userId, id);
+      
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      res.json(document);
+    } catch (error: any) {
+      console.error("Error fetching document:", error);
+      res.status(500).json({ error: "Failed to fetch document" });
+    }
+  });
+
+  // Delete document
+  app.delete("/api/documents/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      const document = await storage.getDocument(userId, id);
+      
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // NOTE: Delete operation is best-effort, not fully transactional.
+      // In production, consider using a job queue for cleanup or database transactions.
+      // Current approach: Try file deletion first, then remove DB record.
+      // If file deletion fails, we still clean up the database to prevent orphaned records.
+      try {
+        await deleteDocumentFile(document.storageKey);
+      } catch (error: any) {
+        console.error("Failed to delete document file, continuing with DB cleanup:", error);
+        // File might already be deleted or unreachable - don't block DB cleanup
+      }
+
+      // Delete from database
+      const deleted = await storage.deleteDocument(userId, id);
+
+      if (!deleted) {
+        return res.status(500).json({ error: "Failed to delete document" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting document:", error);
+      res.status(500).json({ error: "Failed to delete document" });
     }
   });
 

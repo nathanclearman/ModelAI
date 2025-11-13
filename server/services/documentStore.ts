@@ -9,6 +9,16 @@ export interface DocumentStoreResult {
 }
 
 /**
+ * Sanitize filename to prevent path traversal
+ */
+function sanitizeFilename(filename: string): string {
+  return filename
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/\.+/g, '.')
+    .slice(0, 255);
+}
+
+/**
  * Store document file in temporary storage
  * Similar to imageStore but for documents
  */
@@ -24,8 +34,9 @@ export async function storeDocument(
       await mkdir(storageDir, { recursive: true });
     }
 
-    // Generate unique storage key
-    const fileExtension = fileName.split(".").pop() || "bin";
+    // Sanitize filename and generate unique storage key
+    const sanitizedName = sanitizeFilename(fileName);
+    const fileExtension = sanitizedName.split(".").pop() || "bin";
     const storageKey = `${userId}_${randomUUID()}.${fileExtension}`;
     const filePath = join(storageDir, storageKey);
 
@@ -42,5 +53,23 @@ export async function storeDocument(
   } catch (error: any) {
     console.error("Document storage error:", error);
     throw new Error(`Failed to store document: ${error.message}`);
+  }
+}
+
+/**
+ * Delete document from storage
+ */
+export async function deleteDocument(storageKey: string): Promise<void> {
+  try {
+    const { unlink } = await import("fs/promises");
+    // storageKey format: "tmp/documents/userId_uuid.ext"
+    const filePath = join(process.cwd(), storageKey);
+    console.log(`[DocumentStore] Deleting file: ${filePath}`);
+    await unlink(filePath);
+    console.log(`[DocumentStore] File deleted successfully: ${filePath}`);
+  } catch (error: any) {
+    console.error(`[DocumentStore] Delete failed for ${storageKey}:`, error);
+    // Rethrow to ensure caller knows deletion failed
+    throw new Error(`Failed to delete document from storage: ${error.message}`);
   }
 }

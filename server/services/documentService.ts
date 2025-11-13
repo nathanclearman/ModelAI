@@ -23,6 +23,53 @@ export interface DocumentProcessingResult {
 const MAX_CHUNK_SIZE = 3000; // Characters per chunk
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+// Magic bytes for file type verification
+const MAGIC_BYTES = {
+  pdf: [0x25, 0x50, 0x44, 0x46], // %PDF
+  docx: [0x50, 0x4B, 0x03, 0x04], // PK (ZIP format)
+  txt: null, // Plain text has no magic bytes
+  md: null, // Markdown has no magic bytes
+};
+
+// Allowed MIME types (DOCX only, not legacy DOC)
+const ALLOWED_MIMES = {
+  pdf: ["application/pdf"],
+  docx: [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+  txt: ["text/plain"],
+  md: ["text/markdown", "text/plain"],
+};
+
+/**
+ * Verify file content matches expected type using magic bytes
+ */
+function verifyFileSignature(buffer: Buffer, fileType: string): boolean {
+  const magicBytes = MAGIC_BYTES[fileType as keyof typeof MAGIC_BYTES];
+  
+  // Plain text and markdown don't have magic bytes
+  if (!magicBytes) {
+    return true;
+  }
+
+  // Check if buffer starts with expected magic bytes
+  for (let i = 0; i < magicBytes.length; i++) {
+    if (buffer[i] !== magicBytes[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Validate MIME type matches file type
+ */
+function validateMimeType(mimeType: string, fileType: string): boolean {
+  const allowedMimes = ALLOWED_MIMES[fileType as keyof typeof ALLOWED_MIMES];
+  return allowedMimes && allowedMimes.includes(mimeType);
+}
+
 /**
  * Extract text from PDF file
  */
@@ -110,21 +157,34 @@ function chunkText(text: string, maxChunkSize: number = MAX_CHUNK_SIZE): string[
 }
 
 /**
- * Determine file type from filename
+ * Determine file type from filename and MIME type
+ * Falls back to MIME type if extension is missing or unknown
  */
-function getFileType(filename: string): string {
+function getFileType(filename: string, mimeType: string): string {
   const extension = filename.split(".").pop()?.toLowerCase() || "";
   
-  const typeMap: Record<string, string> = {
+  const extensionMap: Record<string, string> = {
     pdf: "pdf",
     docx: "docx",
-    doc: "docx",
     txt: "txt",
     md: "md",
     markdown: "md",
   };
 
-  return typeMap[extension] || "unknown";
+  // Try extension first
+  if (extensionMap[extension]) {
+    return extensionMap[extension];
+  }
+
+  // Fall back to MIME type
+  const mimeMap: Record<string, string> = {
+    "application/pdf": "pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "text/plain": "txt",
+    "text/markdown": "md",
+  };
+
+  return mimeMap[mimeType] || "unknown";
 }
 
 /**
@@ -140,7 +200,22 @@ export async function processDocument(
     throw new Error(`File size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024}MB`);
   }
 
-  const fileType = getFileType(originalname);
+  const fileType = getFileType(originalname, mimetype);
+  
+  if (fileType === "unknown") {
+    throw new Error(`Unsupported file type. Supported formats: PDF, DOCX, TXT, MD`);
+  }
+  
+  // Validate MIME type matches determined file type
+  if (!validateMimeType(mimetype, fileType)) {
+    throw new Error(`Invalid MIME type ${mimetype} for file type ${fileType}`);
+  }
+
+  // Verify file signature (magic bytes)
+  if (!verifyFileSignature(buffer, fileType)) {
+    throw new Error(`File content does not match declared type: ${fileType}`);
+  }
+
   let extractedText = "";
 
   // Extract text based on file type

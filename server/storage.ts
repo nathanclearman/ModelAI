@@ -131,7 +131,7 @@ export interface IStorage {
   deleteImageAsset(id: string): Promise<boolean>;
   
   // Document methods (scoped to userId)
-  createDocument(userId: string, document: InsertDocument): Promise<Document>;
+  createDocument(userId: string, document: Omit<InsertDocument, 'userId'>): Promise<Document>;
   getDocument(userId: string, id: string): Promise<Document | undefined>;
   getUserDocuments(userId: string): Promise<Document[]>;
   getConversationDocuments(userId: string, conversationId: string): Promise<Document[]>;
@@ -1023,6 +1023,50 @@ export class DatabaseStorage implements IStorage {
 
   async deleteImageAsset(id: string): Promise<boolean> {
     const result = await db.delete(imageAssets).where(eq(imageAssets.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Document methods
+  async createDocument(userId: string, document: Omit<InsertDocument, 'userId'>): Promise<Document> {
+    const [doc] = await db.insert(documents).values({
+      ...document,
+      userId,
+    }).returning();
+    return doc;
+  }
+
+  async getDocument(userId: string, id: string): Promise<Document | undefined> {
+    const result = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.id, id), eq(documents.userId, userId)));
+    return result[0];
+  }
+
+  async getUserDocuments(userId: string): Promise<Document[]> {
+    return db
+      .select()
+      .from(documents)
+      .where(eq(documents.userId, userId))
+      .orderBy(desc(documents.createdAt));
+  }
+
+  async getConversationDocuments(userId: string, conversationId: string): Promise<Document[]> {
+    return db
+      .select()
+      .from(documents)
+      .where(and(
+        eq(documents.userId, userId),
+        eq(documents.conversationId, conversationId)
+      ))
+      .orderBy(desc(documents.createdAt));
+  }
+
+  async deleteDocument(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(documents)
+      .where(and(eq(documents.id, id), eq(documents.userId, userId)))
+      .returning();
     return result.length > 0;
   }
 }

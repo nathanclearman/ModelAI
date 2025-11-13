@@ -60,6 +60,19 @@ The platform includes:
   - Quota tracking (10 images for Free tier, 100 for Pro, 1000 for Enterprise)
   - Temporary local storage with 24-hour expiration
   - Available to all authenticated users with quota enforcement
+- **Document Analysis:** Upload and extract text from documents for AI-powered analysis (development feature).
+  - Support for PDF, DOCX, TXT, and Markdown files
+  - 10MB file size limit
+  - Text extraction with automatic chunking (3000 characters per chunk)
+  - Security: MIME type validation, magic byte verification, filename sanitization
+  - User-scoped storage and access control
+  - API endpoints: POST /api/documents/upload, GET /api/documents, GET /api/documents/:id, DELETE /api/documents/:id
+  - **Production Note:** Current implementation includes basic security measures. Production deployment requires additional security layers:
+    - Antivirus/malware scanning (ClamAV or cloud service)
+    - Sandboxed document processing
+    - Rate limiting on uploads
+    - Enhanced file validation beyond magic bytes
+    - Content Security Policy for served files
 - **User Settings:** Account information management, personal OpenAI API key configuration, and newsletter subscription.
   - Newsletter subscription: Opt-in to receive product updates, best practices, and AI tips
   - Newsletter toggle in settings with subscription date tracking
@@ -115,6 +128,9 @@ The platform includes:
 - **@neondatabase/serverless:** PostgreSQL connectivity.
 - **drizzle-orm:** Type-safe ORM for database interactions.
 - **openai:** Official OpenAI API client.
+- **pdf-parse:** PDF text extraction for document analysis.
+- **mammoth:** DOCX text extraction for document analysis.
+- **multer:** File upload handling middleware.
 - **@tanstack/react-query:** Asynchronous state management for React.
 - **@radix-ui/*:** Unstyled, accessible UI primitives.
 - **wouter:** Lightweight client-side routing.
