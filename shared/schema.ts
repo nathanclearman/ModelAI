@@ -14,7 +14,15 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table (updated for Replit Auth)
+// Subscription tier enum
+export const subscriptionTiers = ["free", "pro", "enterprise"] as const;
+export type SubscriptionTier = typeof subscriptionTiers[number];
+
+// Subscription status enum
+export const subscriptionStatuses = ["active", "canceled", "past_due", "incomplete", "trialing"] as const;
+export type SubscriptionStatus = typeof subscriptionStatuses[number];
+
+// User storage table (updated for Replit Auth and Stripe integration)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").notNull().unique(),
@@ -24,8 +32,17 @@ export const users = pgTable("users", {
   companyName: varchar("company_name"),
   profileImageUrl: varchar("profile_image_url"),
   isAdmin: integer("is_admin").notNull().default(0),
+  // Stripe subscription fields
+  stripeCustomerId: varchar("stripe_customer_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
+  subscriptionTier: text("subscription_tier").notNull().default("free"),
+  subscriptionStatus: text("subscription_status").default("active"),
+  billingPeriodEnd: timestamp("billing_period_end"),
+  // Usage tracking
   messageQuota: integer("message_quota").notNull().default(100),
   messagesUsed: integer("messages_used").notNull().default(0),
+  imageQuota: integer("image_quota").notNull().default(10),
+  imagesUsed: integer("images_used").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -42,10 +59,15 @@ export const updateUserProfileSchema = z.object({
 
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 
+// Model type enum
+export const modelTypes = ["chat", "image-generator"] as const;
+export type ModelType = typeof modelTypes[number];
+
 export const aiModels = pgTable("ai_models", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
   workspaceId: varchar("workspace_id"),
+  modelType: text("model_type").notNull().default("chat"),
   name: text("name").notNull(),
   description: text("description"),
   systemPrompt: text("system_prompt").notNull(),
@@ -221,3 +243,51 @@ export const insertModelVersionSchema = createInsertSchema(modelVersions).omit({
 
 export type InsertModelVersion = z.infer<typeof insertModelVersionSchema>;
 export type ModelVersion = typeof modelVersions.$inferSelect;
+
+// Generated images table for Gemini image generation
+export const generatedImages = pgTable("generated_images", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  modelId: varchar("model_id"),
+  prompt: text("prompt").notNull(),
+  imageData: text("image_data").notNull(),
+  mimeType: text("mime_type").notNull().default("image/png"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_generated_images_user").on(table.userId),
+  index("idx_generated_images_model").on(table.modelId),
+  index("idx_generated_images_created").on(table.createdAt),
+]);
+
+export const insertGeneratedImageSchema = createInsertSchema(generatedImages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertGeneratedImage = z.infer<typeof insertGeneratedImageSchema>;
+export type GeneratedImage = typeof generatedImages.$inferSelect;
+
+// Subscription plan configuration (server-side only, not stored in DB)
+export const subscriptionPlans = {
+  free: {
+    name: "Free",
+    price: 0,
+    messageQuota: 100,
+    imageQuota: 10,
+    features: ["100 chat messages/month", "10 images/month", "Basic models", "Community support"],
+  },
+  pro: {
+    name: "Pro",
+    price: 20,
+    messageQuota: 1000,
+    imageQuota: 100,
+    features: ["1,000 chat messages/month", "100 images/month", "Advanced models", "Priority support", "API access"],
+  },
+  enterprise: {
+    name: "Enterprise",
+    price: 100,
+    messageQuota: 10000,
+    imageQuota: 1000,
+    features: ["10,000 chat messages/month", "1,000 images/month", "All models", "24/7 support", "Team workspaces", "Custom integrations"],
+  },
+} as const;
