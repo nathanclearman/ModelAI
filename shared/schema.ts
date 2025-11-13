@@ -50,6 +50,9 @@ export const users = pgTable("users", {
   emailVerified: integer("email_verified").notNull().default(0),
   verificationToken: varchar("verification_token"),
   verificationSentAt: timestamp("verification_sent_at"),
+  // Coupon code tracking
+  couponCode: varchar("coupon_code"),
+  couponAppliedAt: timestamp("coupon_applied_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

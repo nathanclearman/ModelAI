@@ -27,6 +27,9 @@ export default function Settings() {
   const [lastName, setLastName] = useState("");
   const [companyName, setCompanyName] = useState("");
 
+  // Coupon code state
+  const [couponCode, setCouponCode] = useState("");
+
   // Fetch current user data
   const { data: user, isLoading: isLoadingUser } = useQuery<User>({
     queryKey: ["/api/auth/user"],
@@ -70,6 +73,28 @@ export default function Settings() {
         variant: "destructive",
         title: "Error",
         description: "Failed to update newsletter subscription",
+      });
+    },
+  });
+
+  // Coupon code redemption mutation
+  const applyCouponMutation = useMutation({
+    mutationFn: async (code: string) => {
+      return await apiRequest("POST", "/api/auth/apply-coupon", { couponCode: code });
+    },
+    onSuccess: (response: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setCouponCode("");
+      toast({
+        title: "Success",
+        description: response.message || "Coupon applied successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to apply coupon",
       });
     },
   });
@@ -130,6 +155,19 @@ export default function Settings() {
 
   const handleSaveAccountInfo = () => {
     updateUserMutation.mutate({ firstName, lastName, companyName });
+  };
+
+  const handleApplyCoupon = () => {
+    if (!couponCode.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter a coupon code",
+      });
+      return;
+    }
+
+    applyCouponMutation.mutate(couponCode);
   };
 
   return (
@@ -295,6 +333,74 @@ export default function Settings() {
           </CardContent>
         </Card>
       )}
+
+      {/* Coupon Code Redemption */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Premium Subscription
+          </CardTitle>
+          <CardDescription>
+            Upgrade to Pro tier with a coupon code
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {user?.couponCode ? (
+            <Alert className="border-green-500/50 bg-green-500/10">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertDescription className="text-green-700 dark:text-green-400">
+                <div className="space-y-1">
+                  <p className="font-medium">Active subscription via coupon: {user.couponCode}</p>
+                  <p className="text-sm">
+                    Applied on {new Date(user.couponAppliedAt!).toLocaleDateString()}
+                  </p>
+                  <p className="text-sm">
+                    Current tier: <Badge variant="default" className="ml-1">{user.subscriptionTier}</Badge>
+                  </p>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="coupon-code">Coupon Code</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="coupon-code"
+                    type="text"
+                    placeholder="Enter coupon code (e.g., christmas2024)"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    disabled={applyCouponMutation.isPending}
+                    data-testid="input-coupon-code"
+                  />
+                  <Button 
+                    onClick={handleApplyCoupon} 
+                    disabled={applyCouponMutation.isPending || !couponCode.trim()}
+                    data-testid="button-apply-coupon"
+                  >
+                    {applyCouponMutation.isPending ? "Applying..." : "Apply"}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Enter a valid coupon code to unlock Pro tier features including increased quotas and image generation.
+                </p>
+              </div>
+              
+              <div className="rounded-md bg-muted p-4 space-y-2">
+                <p className="text-sm font-medium">Pro Tier Benefits:</p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>1,000 message quota (10x increase)</li>
+                  <li>100 AI image generations</li>
+                  <li>Image analysis with Gemini AI</li>
+                  <li>Priority support</li>
+                </ul>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

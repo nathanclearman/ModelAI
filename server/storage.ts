@@ -59,6 +59,7 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, data: { firstName?: string | null; lastName?: string | null; companyName?: string | null }): Promise<User | undefined>;
   updateNewsletterSubscription(userId: string, subscribed: boolean): Promise<User | undefined>;
+  applyCoupon(userId: string, couponCode: string, tier: string, imageQuota: number, messageQuota: number): Promise<User | undefined>;
   getNewsletterSubscribers(): Promise<Array<{ email: string; firstName: string | null; lastName: string | null }>>;
   incrementUserMessages(userId: string): Promise<void>;
   createVerificationToken(userId: string, token: string): Promise<void>;
@@ -197,6 +198,23 @@ export class DatabaseStorage implements IStorage {
       .set({ 
         newsletterSubscribed: subscribed ? 1 : 0,
         newsletterSubscribedAt: subscribed ? new Date() : null,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  async applyCoupon(userId: string, couponCode: string, tier: string, imageQuota: number, messageQuota: number): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({
+        couponCode,
+        couponAppliedAt: new Date(),
+        subscriptionTier: tier,
+        subscriptionStatus: 'active',
+        imageQuota,
+        messageQuota,
         updatedAt: new Date()
       })
       .where(eq(users.id, userId))

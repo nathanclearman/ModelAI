@@ -64,6 +64,12 @@ The platform includes:
   - Newsletter subscription: Opt-in to receive product updates, best practices, and AI tips
   - Newsletter toggle in settings with subscription date tracking
   - Success/error feedback via toast notifications
+- **Coupon Code System:** Redeem promotional codes to unlock premium subscriptions.
+  - Apply coupon codes in settings to upgrade subscription tier
+  - "christmas2024" coupon grants Pro tier with 1,000 message quota and 100 image generations
+  - One-time redemption per user with tracking of applied coupon and date
+  - Visual display of active subscription with tier badge
+  - Prevents duplicate coupon usage
 - **Admin Dashboard:** Statistics, user management, ability to grant/revoke admin privileges, view/export user conversations, and send newsletters.
   - Auto-admin: fransantbrid@anglernook.com is automatically promoted to admin on registration
   - User conversation viewing: Click "View Conversations" to see all conversations for any user

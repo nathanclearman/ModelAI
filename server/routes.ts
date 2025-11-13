@@ -113,6 +113,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Apply coupon code
+  app.post('/api/auth/apply-coupon', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { couponCode } = req.body;
+
+      if (!couponCode || typeof couponCode !== 'string') {
+        return res.status(400).json({ error: "Coupon code is required" });
+      }
+
+      const normalizedCode = couponCode.trim().toLowerCase();
+
+      // Check if user already used a coupon
+      const user = await storage.getUserById(userId);
+      if (user?.couponCode) {
+        return res.status(400).json({ error: "You have already redeemed a coupon code" });
+      }
+
+      // Validate coupon code
+      const validCoupons: { [key: string]: { tier: string; imageQuota: number; messageQuota: number } } = {
+        'christmas2024': {
+          tier: 'pro',
+          imageQuota: 100,
+          messageQuota: 1000
+        }
+      };
+
+      const coupon = validCoupons[normalizedCode];
+      if (!coupon) {
+        return res.status(400).json({ error: "Invalid coupon code" });
+      }
+
+      // Apply coupon - upgrade user to Pro tier
+      const updatedUser = await storage.applyCoupon(userId, couponCode, coupon.tier, coupon.imageQuota, coupon.messageQuota);
+
+      if (!updatedUser) {
+        return res.status(500).json({ error: "Failed to apply coupon" });
+      }
+
+      // Update the session with the new user data using req.login()
+      const { password, ...userWithoutPassword } = updatedUser;
+      
+      req.logIn(userWithoutPassword, (err: any) => {
+        if (err) {
+          console.error("Error updating session:", err);
+          return res.status(500).json({ error: "Coupon applied but session update failed" });
+        }
+        
+        res.json({
+          user: userWithoutPassword,
+          message: `Coupon applied successfully! You now have ${coupon.tier} tier access.`
+        });
+      });
+    } catch (error) {
+      console.error("Error applying coupon:", error);
+      res.status(500).json({ error: "Failed to apply coupon" });
+    }
+  });
+
   // AI Model Routes (all protected)
   
   // Get all AI models for the authenticated user
