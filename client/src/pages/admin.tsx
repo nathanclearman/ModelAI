@@ -97,12 +97,13 @@ export default function Admin() {
 
   const sendNewsletterMutation = useMutation({
     mutationFn: async (data: typeof newsletterForm) => {
-      return await apiRequest("POST", "/api/admin/newsletter/send", data);
+      const response = await apiRequest("POST", "/api/admin/newsletter/send", data);
+      return await response.json();
     },
-    onSuccess: (response: any) => {
+    onSuccess: (data: any) => {
       toast({
         title: "Newsletter Sent!",
-        description: `Successfully sent to ${response.successCount} of ${response.totalSubscribers} subscribers`,
+        description: `Successfully sent to ${data.successCount} of ${data.totalSubscribers} subscribers`,
       });
       setNewsletterForm({ subject: '', headline: '', content: '', ctaText: '', ctaUrl: '' });
     },

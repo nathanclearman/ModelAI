@@ -187,8 +187,8 @@ export async function sendNewsletterToSubscribers(
     );
     results.push({ email: subscriber.email, ...result });
     
-    // Add small delay to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Add delay to avoid rate limiting (Resend free tier: 2 req/sec max)
+    await new Promise(resolve => setTimeout(resolve, 600));
   }
   
   return results;
