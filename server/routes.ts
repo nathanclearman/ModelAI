@@ -46,6 +46,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update newsletter subscription
+  app.patch('/api/auth/newsletter', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { subscribed } = req.body;
+
+      if (typeof subscribed !== 'boolean') {
+        return res.status(400).json({ error: "subscribed must be a boolean" });
+      }
+
+      const updatedUser = await storage.updateNewsletterSubscription(userId, subscribed);
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Remove password from response
+      const { password, ...userWithoutPassword } = updatedUser;
+
+      res.json({
+        user: userWithoutPassword,
+        message: subscribed 
+          ? "Successfully subscribed to newsletter" 
+          : "Successfully unsubscribed from newsletter"
+      });
+    } catch (error) {
+      console.error("Error updating newsletter subscription:", error);
+      res.status(500).json({ error: "Failed to update newsletter subscription" });
+    }
+  });
+
   // AI Model Routes (all protected)
   
   // Get all AI models for the authenticated user

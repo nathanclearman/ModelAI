@@ -55,6 +55,8 @@ export interface IStorage {
   createUser(user: UpsertUser): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, data: { firstName?: string | null; lastName?: string | null; companyName?: string | null }): Promise<User | undefined>;
+  updateNewsletterSubscription(userId: string, subscribed: boolean): Promise<User | undefined>;
+  getNewsletterSubscribers(): Promise<Array<{ email: string; firstName: string | null; lastName: string | null }>>;
   incrementUserMessages(userId: string): Promise<void>;
   
   // AI Model methods (all scoped to userId)
@@ -173,6 +175,31 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return result[0];
+  }
+
+  async updateNewsletterSubscription(userId: string, subscribed: boolean): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({ 
+        newsletterSubscribed: subscribed ? 1 : 0,
+        newsletterSubscribedAt: subscribed ? new Date() : null,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  async getNewsletterSubscribers(): Promise<Array<{ email: string; firstName: string | null; lastName: string | null }>> {
+    const subscribers = await db
+      .select({
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+      })
+      .from(users)
+      .where(eq(users.newsletterSubscribed, 1));
+    return subscribers;
   }
 
   async getUserById(id: string): Promise<User | undefined> {

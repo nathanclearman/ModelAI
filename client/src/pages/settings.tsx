@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Key, AlertTriangle, CheckCircle2, Activity } from "lucide-react";
+import { Eye, EyeOff, Key, AlertTriangle, CheckCircle2, Activity, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { type User } from "@shared/schema";
@@ -49,6 +49,27 @@ export default function Settings() {
         variant: "destructive",
         title: "Error",
         description: "Failed to update account information",
+      });
+    },
+  });
+
+  // Newsletter subscription mutation
+  const updateNewsletterMutation = useMutation({
+    mutationFn: async (subscribed: boolean) => {
+      return await apiRequest("PATCH", "/api/auth/newsletter", { subscribed });
+    },
+    onSuccess: (response: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({
+        title: "Success",
+        description: response.message || "Newsletter subscription updated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update newsletter subscription",
       });
     },
   });
@@ -309,6 +330,55 @@ export default function Settings() {
               onCheckedChange={setAutoSave}
               data-testid="switch-auto-save"
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Newsletter Subscription
+          </CardTitle>
+          <CardDescription>
+            Get updates, tips, and announcements delivered to your inbox
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="newsletter">Subscribe to Newsletter</Label>
+              <p className="text-sm text-muted-foreground">
+                Receive product updates, best practices, and AI tips monthly
+              </p>
+            </div>
+            <Switch
+              id="newsletter"
+              checked={user?.newsletterSubscribed === 1}
+              onCheckedChange={(checked) => updateNewsletterMutation.mutate(checked)}
+              disabled={updateNewsletterMutation.isPending || isLoadingUser}
+              data-testid="switch-newsletter"
+            />
+          </div>
+          
+          {user?.newsletterSubscribed === 1 && user?.newsletterSubscribedAt && (
+            <Alert className="border-green-500/50 bg-green-500/10">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertDescription className="text-green-700 dark:text-green-400">
+                Subscribed since {new Date(user.newsletterSubscribedAt).toLocaleDateString()}
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          <div className="text-sm text-muted-foreground">
+            <p>We'll send you:</p>
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>Platform updates and new features</li>
+              <li>AI model best practices and tips</li>
+              <li>Community highlights and success stories</li>
+              <li>Exclusive early access to new features</li>
+            </ul>
+            <p className="mt-2">You can unsubscribe anytime.</p>
           </div>
         </CardContent>
       </Card>

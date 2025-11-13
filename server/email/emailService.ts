@@ -4,6 +4,7 @@ import { render } from '@react-email/components';
 import { getResendClient } from './client';
 import WelcomeEmail from './templates/welcome';
 import UsageAlertEmail from './templates/usage-alert';
+import NewsletterEmail from './templates/newsletter';
 
 export async function sendWelcomeEmail(to: string, username: string, subscriptionTier: string) {
   try {
@@ -118,4 +119,77 @@ export async function sendSubscriptionConfirmationEmail(
     console.error('Error sending subscription confirmation email:', error);
     return { success: false, error };
   }
+}
+
+export async function sendNewsletter(
+  to: string,
+  username: string,
+  subject: string,
+  headline: string,
+  content: string,
+  ctaText?: string,
+  ctaUrl?: string
+) {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const emailHtml = await render(
+      createElement(NewsletterEmail, {
+        username,
+        subject,
+        headline,
+        content,
+        ctaText,
+        ctaUrl,
+      })
+    );
+    
+    const { data, error } = await client.emails.send({
+      from: fromEmail,
+      to,
+      subject,
+      html: emailHtml,
+    });
+
+    if (error) {
+      console.error('Failed to send newsletter:', error);
+      return { success: false, error };
+    }
+
+    console.log('Newsletter sent successfully:', data);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error sending newsletter:', error);
+    return { success: false, error };
+  }
+}
+
+export async function sendNewsletterToSubscribers(
+  subscribers: Array<{ email: string; firstName: string | null; lastName: string | null }>,
+  subject: string,
+  headline: string,
+  content: string,
+  ctaText?: string,
+  ctaUrl?: string
+) {
+  const results = [];
+  
+  for (const subscriber of subscribers) {
+    const username = subscriber.firstName || subscriber.email.split('@')[0];
+    const result = await sendNewsletter(
+      subscriber.email,
+      username,
+      subject,
+      headline,
+      content,
+      ctaText,
+      ctaUrl
+    );
+    results.push({ email: subscriber.email, ...result });
+    
+    // Add small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  
+  return results;
 }

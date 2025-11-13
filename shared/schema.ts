@@ -43,6 +43,9 @@ export const users = pgTable("users", {
   messagesUsed: integer("messages_used").notNull().default(0),
   imageQuota: integer("image_quota").notNull().default(10),
   imagesUsed: integer("images_used").notNull().default(0),
+  // Newsletter subscription
+  newsletterSubscribed: integer("newsletter_subscribed").notNull().default(0),
+  newsletterSubscribedAt: timestamp("newsletter_subscribed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
