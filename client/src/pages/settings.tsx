@@ -456,6 +456,7 @@ export default function Settings() {
                     Pay with Card
                   </Label>
                   <Button 
+                    type="button"
                     onClick={() => createCheckoutMutation.mutate()}
                     disabled={createCheckoutMutation.isPending}
                     className="w-full"
