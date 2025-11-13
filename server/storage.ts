@@ -13,6 +13,7 @@ import {
   apiKeys,
   modelVersions,
   imageAssets,
+  documents,
   stripeCheckoutSessions,
   type User,
   type UpsertUser,
@@ -33,6 +34,8 @@ import {
   type InsertModelVersion,
   type ImageAsset,
   type InsertImageAsset,
+  type Document,
+  type InsertDocument,
   type StripeCheckoutSession,
 } from "@shared/schema";
 
@@ -126,6 +129,13 @@ export interface IStorage {
   getUserImageAssets(userId: string): Promise<ImageAsset[]>;
   getExpiredImageAssets(): Promise<ImageAsset[]>;
   deleteImageAsset(id: string): Promise<boolean>;
+  
+  // Document methods (scoped to userId)
+  createDocument(userId: string, document: InsertDocument): Promise<Document>;
+  getDocument(userId: string, id: string): Promise<Document | undefined>;
+  getUserDocuments(userId: string): Promise<Document[]>;
+  getConversationDocuments(userId: string, conversationId: string): Promise<Document[]>;
+  deleteDocument(userId: string, id: string): Promise<boolean>;
   
   // Workspace methods
   createWorkspace(userId: string, workspace: InsertWorkspace): Promise<Workspace>;
