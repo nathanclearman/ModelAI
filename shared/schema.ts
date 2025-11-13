@@ -330,6 +330,68 @@ export const insertGeneratedImageSchema = createInsertSchema(generatedImages).om
 export type InsertGeneratedImage = z.infer<typeof insertGeneratedImageSchema>;
 export type GeneratedImage = typeof generatedImages.$inferSelect;
 
+// Workflow automation tables
+export const workflowTriggerTypes = ["manual", "schedule", "webhook"] as const;
+export type WorkflowTriggerType = typeof workflowTriggerTypes[number];
+
+export const workflowStepTypes = [
+  "ai_chat",
+  "ai_image_generation", 
+  "ai_image_analysis",
+  "document_analysis",
+  "email",
+  "webhook",
+  "delay"
+] as const;
+export type WorkflowStepType = typeof workflowStepTypes[number];
+
+export const workflows = pgTable("workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  workspaceId: varchar("workspace_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerType: text("trigger_type").notNull().default("manual"),
+  triggerConfig: jsonb("trigger_config"),
+  steps: jsonb("steps").notNull().default([]),
+  enabled: integer("enabled").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertWorkflowSchema = createInsertSchema(workflows).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
+export type Workflow = typeof workflows.$inferSelect;
+
+export const workflowRunStatuses = ["pending", "running", "completed", "failed"] as const;
+export type WorkflowRunStatus = typeof workflowRunStatuses[number];
+
+export const workflowRuns = pgTable("workflow_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  input: jsonb("input"),
+  output: jsonb("output"),
+  error: text("error"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const insertWorkflowRunSchema = createInsertSchema(workflowRuns).omit({
+  id: true,
+  startedAt: true,
+});
+
+export type InsertWorkflowRun = z.infer<typeof insertWorkflowRunSchema>;
+export type WorkflowRun = typeof workflowRuns.$inferSelect;
+
 // Subscription plan configuration (server-side only, not stored in DB)
 export const subscriptionPlans = {
   free: {
