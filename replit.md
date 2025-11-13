@@ -31,6 +31,11 @@ The platform includes:
   - Model export/import in JSON format for backup and sharing
   - Public/private visibility toggle for marketplace sharing
   - Category and tag organization for discovery
+  - **Model Favorites/Bookmarks:** Pin frequently used models for quick access
+    - Toggle favorite status via model dropdown menu
+    - Visual star indicator for favorited models
+    - Favorites automatically sorted first in model lists
+    - Per-user favorite tracking (isFavorite field in database)
 - **Model API Access:** Generate secure API keys to integrate AI models into external applications.
   - Create API keys with custom names and optional model scoping
   - API keys hashed with SHA-256 before storage for security
@@ -78,6 +83,13 @@ The platform includes:
   - Newsletter subscription: Opt-in to receive product updates, best practices, and AI tips
   - Newsletter toggle in settings with subscription date tracking
   - Success/error feedback via toast notifications
+- **Usage Dashboard Widget:** Visual quota tracking on the dashboard.
+  - Real-time display of message and image quota usage
+  - Progress bars showing percentage of quota consumed
+  - Subscription tier badge (Free/Pro/Enterprise)
+  - Warning indicators when approaching limits (80%+)
+  - Upgrade CTA for free tier users nearing limits
+  - Monthly quota reset information
 - **Coupon Code System:** Redeem promotional codes to unlock premium subscriptions.
   - Apply coupon codes in settings to upgrade subscription tier
   - "christmas2024" coupon grants Pro tier with 1,000 message quota and 100 image generations

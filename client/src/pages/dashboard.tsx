@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/stats-card";
 import { ConversationCard } from "@/components/conversation-card";
 import { TemplateCard } from "@/components/template-card";
+import { UsageWidget } from "@/components/usage-widget";
 import { Layers, MessageSquare, Activity, Plus } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -97,6 +98,8 @@ export default function Dashboard() {
           icon={Activity}
         />
       </div>
+
+      <UsageWidget />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">

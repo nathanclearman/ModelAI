@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Settings, Trash2, Sparkles, Download } from "lucide-react";
+import { MessageSquare, Settings, Trash2, Sparkles, Download, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,10 +16,12 @@ interface ModelCardProps {
   model: string;
   temperature: number;
   conversationCount: number;
+  isFavorite?: boolean;
   onStartChat?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onExport?: () => void;
+  onToggleFavorite?: () => void;
 }
 
 export function ModelCard({
@@ -28,10 +30,12 @@ export function ModelCard({
   model,
   temperature,
   conversationCount,
+  isFavorite = false,
   onStartChat,
   onEdit,
   onDelete,
   onExport,
+  onToggleFavorite,
 }: ModelCardProps) {
   return (
     <Card className="hover-elevate transition-all">
@@ -45,6 +49,9 @@ export function ModelCard({
               <h4 className="font-semibold text-lg truncate" data-testid="text-model-name">
                 {name}
               </h4>
+              {isFavorite && (
+                <Star className="h-4 w-4 text-primary fill-primary" data-testid="icon-favorite-indicator" />
+              )}
             </div>
             <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
               {description}
@@ -87,6 +94,16 @@ export function ModelCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite?.();
+                }}
+                data-testid="menu-toggle-favorite"
+              >
+                <Star className={`h-4 w-4 mr-2 ${isFavorite ? 'fill-primary text-primary' : ''}`} />
+                {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();

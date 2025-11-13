@@ -97,6 +97,7 @@ export const aiModels = pgTable("ai_models", {
   maxTokens: integer("max_tokens").notNull().default(1000),
   template: text("template"),
   isPublic: integer("is_public").notNull().default(0),
+  isFavorite: integer("is_favorite").notNull().default(0),
   category: text("category"),
   tags: text("tags").array(),
   likesCount: integer("likes_count").notNull().default(0),

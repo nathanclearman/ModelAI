@@ -490,6 +490,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Toggle model favorite
+  app.post("/api/models/:id/favorite", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const model = await storage.toggleModelFavorite(userId, req.params.id);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+      res.json(model);
+    } catch (error) {
+      console.error("Error toggling model favorite:", error);
+      res.status(500).json({ error: "Failed to toggle favorite" });
+    }
+  });
+
   // Model Version Routes
 
   // Get all versions for a model

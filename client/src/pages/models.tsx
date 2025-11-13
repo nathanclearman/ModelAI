@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, Download } from "lucide-react";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { type AIModel, type Conversation } from "@shared/schema";
 import { deleteModel } from "@/lib/api";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { exportModels } from "@/lib/export";
@@ -72,6 +72,31 @@ export default function Models() {
       title: "Success",
       description: `Exported ${models.length} model${models.length > 1 ? "s" : ""}`,
     });
+  };
+
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async (modelId: string) => {
+      return await apiRequest("POST", `/api/models/${modelId}/favorite`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/models"] });
+    },
+  });
+
+  const handleToggleFavorite = async (modelId: string, modelName: string) => {
+    try {
+      await toggleFavoriteMutation.mutateAsync(modelId);
+      toast({
+        title: "Success",
+        description: "Favorite updated",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update favorite",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredModels = models.filter((model) =>
@@ -165,10 +190,12 @@ export default function Models() {
               model={model.model}
               temperature={model.temperature}
               conversationCount={getConversationCount(model.id)}
+              isFavorite={!!model.isFavorite}
               onStartChat={() => setLocation(`/chat/${model.id}`)}
               onEdit={() => setLocation(`/chat/${model.id}`)}
               onDelete={() => handleDeleteModel(model.id, model.name)}
               onExport={() => handleExportModel(model)}
+              onToggleFavorite={() => handleToggleFavorite(model.id, model.name)}
             />
           ))}
         </div>

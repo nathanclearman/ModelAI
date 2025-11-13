@@ -81,6 +81,7 @@ export interface IStorage {
   getAllAIModels(userId: string): Promise<AIModel[]>;
   updateAIModel(userId: string, id: string, model: Partial<InsertAIModel>): Promise<AIModel | undefined>;
   deleteAIModel(userId: string, id: string): Promise<boolean>;
+  toggleModelFavorite(userId: string, modelId: string): Promise<AIModel | undefined>;
   
   // Conversation methods (all scoped to userId)
   createConversation(userId: string, conversation: InsertConversation): Promise<Conversation>;
@@ -414,7 +415,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(aiModels)
       .where(eq(aiModels.userId, userId))
-      .orderBy(desc(aiModels.createdAt));
+      .orderBy(desc(aiModels.isFavorite), desc(aiModels.createdAt));
   }
 
   async updateAIModel(userId: string, id: string, model: Partial<InsertAIModel>): Promise<AIModel | undefined> {
@@ -432,6 +433,19 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(aiModels.id, id), eq(aiModels.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  async toggleModelFavorite(userId: string, modelId: string): Promise<AIModel | undefined> {
+    const model = await this.getAIModel(userId, modelId);
+    if (!model) return undefined;
+    
+    const newFavoriteStatus = model.isFavorite ? 0 : 1;
+    const result = await db
+      .update(aiModels)
+      .set({ isFavorite: newFavoriteStatus })
+      .where(and(eq(aiModels.id, modelId), eq(aiModels.userId, userId)))
+      .returning();
+    return result[0];
   }
 
   // Conversation methods (all scoped to userId)
