@@ -46,6 +46,10 @@ export const users = pgTable("users", {
   // Newsletter subscription
   newsletterSubscribed: integer("newsletter_subscribed").notNull().default(0),
   newsletterSubscribedAt: timestamp("newsletter_subscribed_at"),
+  // Email verification
+  emailVerified: integer("email_verified").notNull().default(0),
+  verificationToken: varchar("verification_token"),
+  verificationSentAt: timestamp("verification_sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
