@@ -70,6 +70,17 @@ The platform includes:
   - One-time redemption per user with tracking of applied coupon and date
   - Visual display of active subscription with tier badge
   - Prevents duplicate coupon usage
+- **Stripe Payment Integration:** Secure one-time payment to upgrade to Pro tier.
+  - $10 one-time payment for Pro tier upgrade
+  - Integrated Stripe Checkout with card validation
+  - Webhook-based payment verification with signature validation
+  - Transactional payment processing prevents replay attacks
+  - Session tracking in database (stripeCheckoutSessions table)
+  - Idempotent webhook handling for duplicate events
+  - Automatic account upgrade upon successful payment
+  - Payment button in settings page with loading states
+  - Secure redirect URLs using REPLIT_DEV_DOMAIN
+  - Read-only status verification endpoint
 - **Admin Dashboard:** Statistics, user management, ability to grant/revoke admin privileges, view/export user conversations, and send newsletters.
   - Auto-admin: fransantbrid@anglernook.com is automatically promoted to admin on registration
   - User conversation viewing: Click "View Conversations" to see all conversations for any user
@@ -98,6 +109,7 @@ The platform includes:
 - **Neon Database:** Serverless PostgreSQL hosting for data persistence.
 - **Replit AI Integrations:** Managed access to OpenAI API and Replit development tools.
 - **Resend:** Transactional email service for newsletters and notifications. Includes React Email templates with branded design.
+- **Stripe:** Payment processing for Pro tier upgrades. Includes webhook-based fulfillment and secure checkout sessions.
 
 ### NPM Packages (Key Examples)
 - **@neondatabase/serverless:** PostgreSQL connectivity.
