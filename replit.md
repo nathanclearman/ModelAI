@@ -55,10 +55,14 @@ The platform includes:
   - Newsletter subscription: Opt-in to receive product updates, best practices, and AI tips
   - Newsletter toggle in settings with subscription date tracking
   - Success/error feedback via toast notifications
-- **Admin Dashboard:** Statistics, user management, ability to grant/revoke admin privileges, and view/export user conversations.
+- **Admin Dashboard:** Statistics, user management, ability to grant/revoke admin privileges, view/export user conversations, and send newsletters.
   - Auto-admin: fransantbrid@anglernook.com is automatically promoted to admin on registration
   - User conversation viewing: Click "View Conversations" to see all conversations for any user
   - Conversation export: Export individual conversations or all conversations at once in JSONL format
+  - Newsletter composer: Built-in UI to compose and send newsletters to all subscribers
+  - Subscriber count display: Shows real-time count of newsletter subscribers
+  - Email validation: Required fields (subject, headline, content) with HTML support
+  - Rate limiting: Sequential sending with delays to avoid hitting Resend limits
 
 ### System Design Choices
 - **Full-Stack TypeScript:** Ensures type safety across both frontend and backend.
