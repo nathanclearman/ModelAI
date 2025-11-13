@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, Brain, MessageSquare, Clock, ShieldAlert, Shield, ShieldCheck, Download, Eye } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Users, Brain, MessageSquare, Clock, ShieldAlert, Shield, ShieldCheck, Download, Eye, DollarSign, ArrowUpDown } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -17,6 +18,17 @@ interface AdminStats {
   totalModels: number;
   totalConversations: number;
   recentUsers: User[];
+}
+
+interface UserCostStat {
+  userId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  messageQuota: number;
+  messagesUsed: number;
+  totalMessages: number;
+  totalCost: string;
 }
 
 function StatsCard({ title, value, description, icon: Icon }: {
@@ -44,6 +56,8 @@ export default function Admin() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [sortBy, setSortBy] = useState<'cost' | 'usage'>('cost');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
@@ -58,6 +72,11 @@ export default function Admin() {
   const { data: userConversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: [`/api/admin/users/${selectedUser?.id}/conversations`],
     enabled: !!selectedUser,
+  });
+
+  const { data: costStats = [], isLoading: costStatsLoading } = useQuery<UserCostStat[]>({
+    queryKey: ["/api/admin/cost-stats"],
+    enabled: isAdmin,
   });
 
   const toggleAdminMutation = useMutation({
@@ -111,6 +130,33 @@ export default function Admin() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const toggleSort = (column: 'cost' | 'usage') => {
+    if (sortBy === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const sortedCostStats = [...costStats].sort((a, b) => {
+    const multiplier = sortDirection === 'asc' ? 1 : -1;
+    if (sortBy === 'cost') {
+      const costA = parseFloat(a.totalCost.replace(/[^0-9.-]/g, '')) || 0;
+      const costB = parseFloat(b.totalCost.replace(/[^0-9.-]/g, '')) || 0;
+      return multiplier * (costA - costB);
+    } else {
+      return multiplier * (a.messagesUsed - b.messagesUsed);
+    }
+  });
+
+  const getQuotaStatus = (used: number, quota: number) => {
+    const percentage = used / quota;
+    if (percentage >= 1) return 'exceeded';
+    if (percentage >= 0.8) return 'warning';
+    return 'normal';
   };
 
   if (authLoading) {
@@ -340,6 +386,112 @@ export default function Admin() {
               <p className="text-center text-muted-foreground py-8">No users yet</p>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <DollarSign className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Usage & Costs</CardTitle>
+              <CardDescription>
+                Track user message quotas and platform costs
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {costStatsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+            </div>
+          ) : sortedCostStats.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No usage data available</p>
+          ) : (
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead data-testid="header-user">User</TableHead>
+                    <TableHead data-testid="header-email">Email</TableHead>
+                    <TableHead data-testid="header-usage">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => toggleSort('usage')}
+                        data-testid="button-sort-usage"
+                      >
+                        Usage
+                        <ArrowUpDown className="ml-2 h-3 w-3" />
+                      </Button>
+                    </TableHead>
+                    <TableHead data-testid="header-status">Status</TableHead>
+                    <TableHead data-testid="header-total-messages">Total Messages</TableHead>
+                    <TableHead data-testid="header-total-cost">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => toggleSort('cost')}
+                        data-testid="button-sort-cost"
+                      >
+                        Total Cost
+                        <ArrowUpDown className="ml-2 h-3 w-3" />
+                      </Button>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedCostStats.map((stat) => {
+                    const quotaStatus = getQuotaStatus(stat.messagesUsed, stat.messageQuota);
+                    return (
+                      <TableRow key={stat.userId} data-testid={`cost-row-${stat.userId}`}>
+                        <TableCell className="font-medium" data-testid={`cell-user-${stat.userId}`}>
+                          {stat.firstName} {stat.lastName}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground" data-testid={`cell-email-${stat.userId}`}>
+                          {stat.email}
+                        </TableCell>
+                        <TableCell data-testid={`cell-usage-${stat.userId}`}>
+                          <span className="text-sm">
+                            {stat.messagesUsed} / {stat.messageQuota}
+                          </span>
+                        </TableCell>
+                        <TableCell data-testid={`cell-status-${stat.userId}`}>
+                          <Badge
+                            variant={
+                              quotaStatus === 'exceeded'
+                                ? 'destructive'
+                                : quotaStatus === 'warning'
+                                ? 'secondary'
+                                : 'default'
+                            }
+                            data-testid={`badge-status-${stat.userId}`}
+                          >
+                            {quotaStatus === 'exceeded'
+                              ? 'Over Quota'
+                              : quotaStatus === 'warning'
+                              ? 'Near Limit'
+                              : 'Normal'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm" data-testid={`cell-total-messages-${stat.userId}`}>
+                          {stat.totalMessages}
+                        </TableCell>
+                        <TableCell className="font-medium" data-testid={`cell-total-cost-${stat.userId}`}>
+                          ${parseFloat(stat.totalCost.replace(/[^0-9.-]/g, '') || '0').toFixed(4)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 

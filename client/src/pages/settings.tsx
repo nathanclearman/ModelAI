@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Key, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, Key, AlertTriangle, CheckCircle2, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { type User } from "@shared/schema";
@@ -186,6 +188,92 @@ export default function Settings() {
           )}
         </CardContent>
       </Card>
+
+      {!user?.isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Usage & Limits
+            </CardTitle>
+            <CardDescription>Track your message usage and quota</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {isLoadingUser ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="inline-block h-6 w-6 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+              </div>
+            ) : (
+              <>
+                {(user?.messageQuota || 0) <= 0 ? (
+                  <Alert variant="destructive" data-testid="alert-no-quota">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      No quota assigned. You cannot send messages until an administrator assigns you a quota.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Messages Used</p>
+                          <p className="text-2xl font-semibold" data-testid="text-messages-used">
+                            {user!.messagesUsed} / {user!.messageQuota}
+                          </p>
+                        </div>
+                        <Badge 
+                          variant={
+                            user!.messagesUsed >= user!.messageQuota
+                              ? "destructive" 
+                              : user!.messagesUsed / user!.messageQuota >= 0.8 
+                              ? "secondary" 
+                              : "default"
+                          }
+                          data-testid="badge-quota-status"
+                        >
+                          {user!.messagesUsed >= user!.messageQuota
+                            ? "Quota Exceeded" 
+                            : `${Math.round((1 - user!.messagesUsed / user!.messageQuota) * 100)}% Remaining`}
+                        </Badge>
+                      </div>
+                      
+                      <Progress 
+                        value={(user!.messagesUsed / user!.messageQuota) * 100} 
+                        className="h-2"
+                        data-testid="progress-quota"
+                      />
+                      
+                      <p className="text-sm text-muted-foreground">
+                        You have used {user!.messagesUsed} of your {user!.messageQuota} message quota.
+                      </p>
+                    </div>
+
+                    {user!.messagesUsed >= user!.messageQuota && (
+                      <Alert variant="destructive" data-testid="alert-quota-exceeded">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          You have exceeded your message quota. Please contact an administrator to request an increase.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {user!.messagesUsed / user!.messageQuota >= 0.8 && 
+                     user!.messagesUsed < user!.messageQuota && (
+                      <Alert data-testid="alert-quota-warning">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          You are approaching your message quota limit. Consider upgrading or contacting an administrator.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
