@@ -11,6 +11,7 @@ import {
   workspaces,
   workspaceMembers,
   apiKeys,
+  modelVersions,
   type User,
   type UpsertUser,
   type AIModel,
@@ -26,6 +27,8 @@ import {
   type InsertWorkspaceMember,
   type ApiKey,
   type InsertApiKey,
+  type ModelVersion,
+  type InsertModelVersion,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -121,6 +124,13 @@ export interface IStorage {
   getUserApiKeys(userId: string): Promise<ApiKey[]>;
   updateApiKeyLastUsed(id: string): Promise<void>;
   deleteApiKey(userId: string, id: string): Promise<boolean>;
+  
+  // Model version methods
+  getModelVersions(modelId: string): Promise<ModelVersion[]>;
+  getModelVersion(modelId: string, versionNumber: number): Promise<ModelVersion | undefined>;
+  createModelVersion(version: InsertModelVersion): Promise<ModelVersion>;
+  getLatestVersionNumber(modelId: string): Promise<number>;
+  restoreModelVersion(userId: string, modelId: string, versionNumber: number): Promise<AIModel | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -693,6 +703,69 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  // Model version methods
+  async getModelVersions(modelId: string): Promise<ModelVersion[]> {
+    return await db
+      .select()
+      .from(modelVersions)
+      .where(eq(modelVersions.modelId, modelId))
+      .orderBy(desc(modelVersions.versionNumber));
+  }
+
+  async getModelVersion(modelId: string, versionNumber: number): Promise<ModelVersion | undefined> {
+    const result = await db
+      .select()
+      .from(modelVersions)
+      .where(and(
+        eq(modelVersions.modelId, modelId),
+        eq(modelVersions.versionNumber, versionNumber)
+      ));
+    return result[0];
+  }
+
+  async createModelVersion(version: InsertModelVersion): Promise<ModelVersion> {
+    const [created] = await db
+      .insert(modelVersions)
+      .values(version)
+      .returning();
+    return created;
+  }
+
+  async getLatestVersionNumber(modelId: string): Promise<number> {
+    const result = await db
+      .select({ maxVersion: sql<number>`COALESCE(MAX(${modelVersions.versionNumber}), 0)` })
+      .from(modelVersions)
+      .where(eq(modelVersions.modelId, modelId));
+    return result[0]?.maxVersion ?? 0;
+  }
+
+  async restoreModelVersion(userId: string, modelId: string, versionNumber: number): Promise<AIModel | undefined> {
+    // Get the version to restore
+    const version = await this.getModelVersion(modelId, versionNumber);
+    if (!version) {
+      return undefined;
+    }
+
+    // Update the model with the version's data
+    const [updated] = await db
+      .update(aiModels)
+      .set({
+        name: version.name,
+        description: version.description,
+        systemPrompt: version.systemPrompt,
+        model: version.model,
+        temperature: version.temperature,
+        maxTokens: version.maxTokens,
+        template: version.template,
+        category: version.category,
+        tags: version.tags,
+      })
+      .where(and(eq(aiModels.id, modelId), eq(aiModels.userId, userId)))
+      .returning();
+
+    return updated;
   }
 }
 
