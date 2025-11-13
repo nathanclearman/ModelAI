@@ -141,6 +141,7 @@ export type Message = {
   timestamp: string;
   imageUrl?: string; // Optional image URL (from object storage, not base64)
   imageType?: "upload" | "generated"; // Track if image was uploaded or AI-generated
+  documentIds?: string[]; // Optional array of document IDs attached to this message
 };
 
 // Image assets table for generated/uploaded images
@@ -159,6 +160,27 @@ export const imageAssets = pgTable("image_assets", {
 
 export type ImageAsset = typeof imageAssets.$inferSelect;
 export type InsertImageAsset = typeof imageAssets.$inferInsert;
+
+// Documents table for uploaded document analysis
+export const documents = pgTable("documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  conversationId: varchar("conversation_id"),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(), // pdf, docx, txt, md
+  mimeType: text("mime_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  storageKey: text("storage_key").notNull(), // Path/key in storage
+  publicUrl: text("public_url").notNull(), // URL to access the document
+  extractedText: text("extracted_text"), // Full extracted text
+  textChunks: jsonb("text_chunks"), // Array of text chunks for large documents
+  summary: text("summary"), // AI-generated summary of document
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"), // For cleanup if needed
+});
+
+export type Document = typeof documents.$inferSelect;
+export type InsertDocument = typeof documents.$inferInsert;
 
 // Usage tracking table for analytics
 export const usageLogs = pgTable("usage_logs", {
