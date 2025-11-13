@@ -9,6 +9,14 @@ import { calculateCost } from "./utils/costCalculator";
 import { geminiService } from "./services/geminiService";
 import { requireImageAccess, checkImageQuota, incrementImageUsage } from "./middleware/imageAccess";
 import { imageStore } from "./services/imageStore";
+import Stripe from "stripe";
+
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
+}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2024-11-20.acacia",
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -169,6 +177,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error applying coupon:", error);
       res.status(500).json({ error: "Failed to apply coupon" });
+    }
+  });
+
+  // Stripe checkout session
+  app.post('/api/create-checkout-session', isAuthenticated, async (req: any, res) => {
+    try {
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: 'Pro Tier Upgrade',
+                description: 'One-time payment for Pro tier access',
+              },
+              unit_amount: 1000,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.origin}/settings?payment=success`,
+        cancel_url: `${req.headers.origin}/settings?payment=cancelled`,
+        customer_email: req.user.email,
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating checkout session:", error);
+      res.status(500).json({ error: "Failed to create checkout session: " + error.message });
     }
   });
 

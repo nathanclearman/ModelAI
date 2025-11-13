@@ -8,11 +8,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Key, AlertTriangle, CheckCircle2, Activity, Mail } from "lucide-react";
+import { Eye, EyeOff, Key, AlertTriangle, CheckCircle2, Activity, Mail, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { type User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 
 export default function Settings() {
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -21,6 +22,7 @@ export default function Settings() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isApiKeySet, setIsApiKeySet] = useState(false);
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
 
   // Account information state
   const [firstName, setFirstName] = useState("");
@@ -99,6 +101,25 @@ export default function Settings() {
     },
   });
 
+  // Stripe checkout mutation
+  const createCheckoutMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/create-checkout-session", {});
+    },
+    onSuccess: (response: any) => {
+      if (response.url) {
+        window.location.href = response.url;
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to create checkout session",
+      });
+    },
+  });
+
   useEffect(() => {
     const savedKey = sessionStorage.getItem("openai_api_key");
     if (savedKey) {
@@ -115,6 +136,27 @@ export default function Settings() {
       setCompanyName(user.companyName || "");
     }
   }, [user]);
+
+  // Handle payment success/cancellation from Stripe redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    
+    if (payment === 'success') {
+      toast({
+        title: "Payment Successful",
+        description: "Thank you for your payment! Your account will be updated shortly.",
+      });
+      setLocation('/settings');
+    } else if (payment === 'cancelled') {
+      toast({
+        variant: "destructive",
+        title: "Payment Cancelled",
+        description: "Your payment was cancelled. No charges were made.",
+      });
+      setLocation('/settings');
+    }
+  }, [toast, setLocation]);
 
   const handleSaveApiKey = () => {
     if (!apiKey.trim()) {
@@ -342,10 +384,10 @@ export default function Settings() {
             Premium Subscription
           </CardTitle>
           <CardDescription>
-            Upgrade to Pro tier with a coupon code
+            Upgrade to Pro tier with a coupon code or payment
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {user?.couponCode ? (
             <Alert className="border-green-500/50 bg-green-500/10">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -386,6 +428,32 @@ export default function Settings() {
                 <p className="text-sm text-muted-foreground">
                   Enter a valid coupon code to unlock Pro tier features including increased quotas and image generation.
                 </p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Separator className="flex-1" />
+                <span className="text-sm text-muted-foreground">or</span>
+                <Separator className="flex-1" />
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" />
+                    Pay with Card
+                  </Label>
+                  <Button 
+                    onClick={() => createCheckoutMutation.mutate()}
+                    disabled={createCheckoutMutation.isPending}
+                    className="w-full"
+                    data-testid="button-stripe-payment"
+                  >
+                    {createCheckoutMutation.isPending ? "Processing..." : "Pay $10 for Pro Tier"}
+                  </Button>
+                  <p className="text-sm text-muted-foreground">
+                    One-time payment of $10 for Pro tier access
+                  </p>
+                </div>
               </div>
               
               <div className="rounded-md bg-muted p-4 space-y-2">
