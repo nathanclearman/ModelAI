@@ -37,6 +37,11 @@ const menuItems = [
     icon: Users,
   },
   {
+    title: "Workflows",
+    url: "/workflows",
+    icon: Zap,
+  },
+  {
     title: "API Keys",
     url: "/api-keys",
     icon: Key,

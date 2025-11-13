@@ -22,6 +22,7 @@ import Admin from "@/pages/admin";
 import Marketplace from "@/pages/marketplace";
 import ApiKeys from "@/pages/api-keys";
 import Workspaces from "@/pages/workspaces";
+import Workflows from "@/pages/workflows";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -53,6 +54,7 @@ function Router() {
       {isAuthenticated && <Route path="/settings" component={Settings} />}
       {isAuthenticated && <Route path="/api-keys" component={ApiKeys} />}
       {isAuthenticated && <Route path="/workspaces" component={Workspaces} />}
+      {isAuthenticated && <Route path="/workflows" component={Workflows} />}
       {isAuthenticated && <Route path="/admin" component={Admin} />}
       <Route component={NotFound} />
     </Switch>
