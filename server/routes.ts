@@ -266,7 +266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ received: true });
   });
 
-  // Verify Stripe payment status (read-only check)
+  // Verify Stripe payment status (read-only check with dev mode fallback)
   app.get('/api/verify-payment', isAuthenticated, async (req: any, res) => {
     try {
       const { session_id } = req.query;
@@ -283,10 +283,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Payment processed successfully! Please refresh the page to see your upgraded account.",
         });
       } else {
-        res.status(202).json({ 
-          processed: false,
-          message: "Payment is being processed. Please wait a moment and try again.",
-        });
+        // In development, webhooks don't work, so check with Stripe directly
+        if (process.env.NODE_ENV === 'development') {
+          try {
+            const session = await stripe.checkout.sessions.retrieve(session_id);
+            
+            if (session.payment_status === 'paid' && session.metadata?.userId === req.user.id) {
+              // Process the payment now since webhook won't fire in dev
+              await storage.processStripePayment(
+                session_id,
+                req.user.id,
+                'Pro',
+                1000,
+                100
+              );
+              
+              res.json({
+                processed: true,
+                message: "Payment verified and processed! Please refresh the page to see your upgraded account.",
+              });
+            } else {
+              res.status(202).json({ 
+                processed: false,
+                message: "Payment is being processed. Please wait a moment and try again.",
+              });
+            }
+          } catch (stripeError: any) {
+            console.error("Error checking Stripe session:", stripeError);
+            res.status(202).json({ 
+              processed: false,
+              message: "Payment is being processed. Please wait a moment and try again.",
+            });
+          }
+        } else {
+          res.status(202).json({ 
+            processed: false,
+            message: "Payment is being processed. Please wait a moment and try again.",
+          });
+        }
       }
     } catch (error: any) {
       console.error("Error verifying payment:", error);
