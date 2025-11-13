@@ -108,13 +108,20 @@ export default function Settings() {
     },
     onSuccess: (response: any) => {
       if (response.url) {
+        // Redirect to Stripe checkout
         window.location.href = response.url;
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No checkout URL received from server",
+        });
       }
     },
     onError: (error: any) => {
       toast({
         variant: "destructive",
-        title: "Error",
+        title: "Payment Error",
         description: error.message || "Failed to create checkout session",
       });
     },
@@ -457,7 +464,11 @@ export default function Settings() {
                   </Label>
                   <Button 
                     type="button"
-                    onClick={() => createCheckoutMutation.mutate()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      createCheckoutMutation.mutate();
+                    }}
                     disabled={createCheckoutMutation.isPending}
                     className="w-full"
                     data-testid="button-stripe-payment"
