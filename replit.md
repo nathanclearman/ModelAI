@@ -51,7 +51,10 @@ The platform includes:
   - Community engagement with usage statistics
 - **Conversation Management:** Real-time streaming chat, conversation history, and export capabilities.
 - **Templates:** Pre-configured AI assistant templates for various use cases.
-- **User Settings:** Account information management and personal OpenAI API key configuration.
+- **User Settings:** Account information management, personal OpenAI API key configuration, and newsletter subscription.
+  - Newsletter subscription: Opt-in to receive product updates, best practices, and AI tips
+  - Newsletter toggle in settings with subscription date tracking
+  - Success/error feedback via toast notifications
 - **Admin Dashboard:** Statistics, user management, ability to grant/revoke admin privileges, and view/export user conversations.
   - Auto-admin: fransantbrid@anglernook.com is automatically promoted to admin on registration
   - User conversation viewing: Click "View Conversations" to see all conversations for any user

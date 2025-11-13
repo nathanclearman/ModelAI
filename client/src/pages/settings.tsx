@@ -356,7 +356,7 @@ export default function Settings() {
               id="newsletter"
               checked={user?.newsletterSubscribed === 1}
               onCheckedChange={(checked) => updateNewsletterMutation.mutate(checked)}
-              disabled={updateNewsletterMutation.isPending || isLoadingUser}
+              disabled={updateNewsletterMutation.isPending}
               data-testid="switch-newsletter"
             />
           </div>
