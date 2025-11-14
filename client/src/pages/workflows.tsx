@@ -352,14 +352,20 @@ export default function WorkflowsPage() {
                       <Accordion type="single" collapsible>
                         {run.error && (
                           <AccordionItem value="error">
-                            <AccordionTrigger className="text-destructive">
+                            <AccordionTrigger 
+                              className="text-destructive"
+                              data-testid={`accordion-error-${run.id}`}
+                            >
                               <div className="flex items-center gap-2">
                                 <AlertCircle className="w-4 h-4" />
                                 Error Details
                               </div>
                             </AccordionTrigger>
                             <AccordionContent>
-                              <div className="bg-destructive/10 p-3 rounded-md text-sm">
+                              <div 
+                                className="bg-destructive/10 p-3 rounded-md text-sm"
+                                data-testid={`text-error-${run.id}`}
+                              >
                                 {run.error}
                               </div>
                             </AccordionContent>
@@ -367,9 +373,14 @@ export default function WorkflowsPage() {
                         )}
                         {run.input && Object.keys(run.input).length > 0 && (
                           <AccordionItem value="input">
-                            <AccordionTrigger>Input</AccordionTrigger>
+                            <AccordionTrigger data-testid={`accordion-input-${run.id}`}>
+                              Input
+                            </AccordionTrigger>
                             <AccordionContent>
-                              <pre className="bg-muted p-3 rounded-md text-xs overflow-auto">
+                              <pre 
+                                className="bg-muted p-3 rounded-md text-xs overflow-auto"
+                                data-testid={`text-input-${run.id}`}
+                              >
                                 {JSON.stringify(run.input, null, 2)}
                               </pre>
                             </AccordionContent>
@@ -377,9 +388,14 @@ export default function WorkflowsPage() {
                         )}
                         {run.output && Object.keys(run.output).length > 0 && (
                           <AccordionItem value="output">
-                            <AccordionTrigger>Output & Results</AccordionTrigger>
+                            <AccordionTrigger data-testid={`accordion-output-${run.id}`}>
+                              Output & Results
+                            </AccordionTrigger>
                             <AccordionContent>
-                              <pre className="bg-muted p-3 rounded-md text-xs overflow-auto max-h-64">
+                              <pre 
+                                className="bg-muted p-3 rounded-md text-xs overflow-auto max-h-64"
+                                data-testid={`text-output-${run.id}`}
+                              >
                                 {JSON.stringify(run.output, null, 2)}
                               </pre>
                             </AccordionContent>
