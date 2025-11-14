@@ -3,7 +3,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Upload, Plus, RefreshCw, X, FileText, Loader2, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { Brain, Upload, Plus, RefreshCw, X, FileText, Loader2, CheckCircle, AlertCircle, Clock, MessageSquare, Copy, Send } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -60,6 +60,7 @@ export default function FineTuningPage() {
   const { toast } = useToast();
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showCreateJobDialog, setShowCreateJobDialog] = useState(false);
+  const [showTestDialog, setShowTestDialog] = useState(false);
   const [uploadMethod, setUploadMethod] = useState<"file" | "text">("file");
   const [fileName, setFileName] = useState("");
   const [fileContent, setFileContent] = useState("");
@@ -67,6 +68,9 @@ export default function FineTuningPage() {
   const [selectedBaseModel, setSelectedBaseModel] = useState("");
   const [modelSuffix, setModelSuffix] = useState("");
   const [nEpochs, setNEpochs] = useState("3");
+  const [testingModel, setTestingModel] = useState<FineTuningJob | null>(null);
+  const [testMessages, setTestMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [testInput, setTestInput] = useState("");
 
   const { data: files = [], isLoading: isLoadingFiles } = useQuery<FineTuningFile[]>({
     queryKey: ["/api/fine-tuning/files"],
@@ -174,6 +178,20 @@ export default function FineTuningPage() {
     },
   });
 
+  const testModelMutation = useMutation({
+    mutationFn: async (data: { model: string; messages: Array<{ role: string; content: string }> }) => {
+      const response = await apiRequest("POST", "/api/fine-tuning/test", data);
+      return await response.json();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Test failed",
+        description: error.message || "Failed to test model",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -230,6 +248,39 @@ export default function FineTuningPage() {
       baseModel: selectedBaseModel,
       suffix: modelSuffix || undefined,
       hyperparameters: Object.keys(hyperparameters).length > 0 ? hyperparameters : undefined,
+    });
+  };
+
+  const handleTestModel = (job: FineTuningJob) => {
+    setTestingModel(job);
+    setTestMessages([]);
+    setTestInput("");
+    setShowTestDialog(true);
+  };
+
+  const handleSendTestMessage = async () => {
+    if (!testInput.trim() || !testingModel?.fineTunedModel) return;
+
+    const userMessage = { role: "user", content: testInput };
+    const updatedMessages = [...testMessages, userMessage];
+    setTestMessages(updatedMessages);
+    setTestInput("");
+
+    testModelMutation.mutate(
+      { model: testingModel.fineTunedModel, messages: updatedMessages },
+      {
+        onSuccess: (data) => {
+          setTestMessages([...updatedMessages, { role: "assistant", content: data.message }]);
+        },
+      }
+    );
+  };
+
+  const handleCopyModelName = (modelName: string) => {
+    navigator.clipboard.writeText(modelName);
+    toast({
+      title: "Copied!",
+      description: "Model name copied to clipboard",
     });
   };
 
@@ -428,7 +479,7 @@ export default function FineTuningPage() {
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <Button
                           size="sm"
                           variant="outline"
@@ -450,6 +501,28 @@ export default function FineTuningPage() {
                             <X className="h-3 w-3 mr-1" />
                             Cancel
                           </Button>
+                        )}
+                        {job.status === "succeeded" && job.fineTunedModel && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleTestModel(job)}
+                              data-testid={`button-test-${job.id}`}
+                            >
+                              <MessageSquare className="h-3 w-3 mr-1" />
+                              Test Model
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCopyModelName(job.fineTunedModel!)}
+                              data-testid={`button-export-${job.id}`}
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copy Model Name
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -619,7 +692,7 @@ export default function FineTuningPage() {
             <div>
               <Label htmlFor="nEpochs">Training Epochs</Label>
               <Input
-                id="nEpochs"
+                id="nEphs"
                 type="number"
                 placeholder="3"
                 value={nEpochs}
@@ -643,6 +716,77 @@ export default function FineTuningPage() {
               >
                 {createJobMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create Job
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test Model Dialog */}
+      <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Test Fine-Tuned Model</DialogTitle>
+            <DialogDescription>
+              Chat with your fine-tuned model: {testingModel?.fineTunedModel}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <ScrollArea className="h-96 rounded-md border p-4">
+              {testMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <MessageSquare className="h-12 w-12 text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">Start a conversation to test your model</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {testMessages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                      data-testid={`message-${idx}`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-lg p-3 ${
+                          msg.role === "user"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {testModelMutation.isPending && (
+                    <div className="flex justify-start">
+                      <div className="bg-muted rounded-lg p-3">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </ScrollArea>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Type your message..."
+                value={testInput}
+                onChange={(e) => setTestInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendTestMessage();
+                  }
+                }}
+                disabled={testModelMutation.isPending}
+                data-testid="input-test-message"
+              />
+              <Button
+                onClick={handleSendTestMessage}
+                disabled={testModelMutation.isPending || !testInput.trim()}
+                data-testid="button-send-test"
+              >
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>
