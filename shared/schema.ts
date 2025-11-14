@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, index, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -354,7 +354,7 @@ export const workflows = pgTable("workflows", {
   triggerType: text("trigger_type").notNull().default("manual"),
   triggerConfig: jsonb("trigger_config"),
   steps: jsonb("steps").notNull().default([]),
-  enabled: integer("enabled").notNull().default(1),
+  enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

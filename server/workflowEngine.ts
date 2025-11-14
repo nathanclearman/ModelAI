@@ -1,12 +1,12 @@
 import { storage } from "./storage";
 import type { Workflow, WorkflowRun } from "@shared/schema";
 import OpenAI from "openai";
-import { geminiService } from "./lib/gemini-service";
-import { imageStore } from "./lib/image-store";
+import { geminiService } from "./services/geminiService";
+import { imageStore } from "./services/imageStore";
 
 type WorkflowStep = {
   id: string;
-  type: "ai_chat" | "ai_image_generation" | "ai_image_analysis" | "document_analysis" | "email" | "webhook" | "delay";
+  type: "ai_chat" | "ai_image_generation" | "webhook" | "delay";
   config: any;
 };
 
@@ -75,9 +75,6 @@ export class WorkflowEngine {
       case "ai_image_generation":
         return await this.executeImageGeneration(step, context);
       
-      case "ai_image_analysis":
-        return await this.executeImageAnalysis(step, context);
-      
       case "delay":
         return await this.executeDelay(step);
       
@@ -132,13 +129,6 @@ export class WorkflowEngine {
       imageGenerated: true,
       size: imageData.length,
     };
-  }
-
-  private async executeImageAnalysis(step: WorkflowStep, context: any): Promise<any> {
-    const { imageUrl, prompt } = step.config;
-    const resolvedPrompt = this.resolveVariables(prompt || "What is in this image?", context);
-
-    throw new Error("Image analysis step not yet implemented");
   }
 
   private async executeDelay(step: WorkflowStep): Promise<any> {
