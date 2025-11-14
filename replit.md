@@ -123,7 +123,12 @@ The platform includes:
   - Sequential execution engine with context passing
   - Three trigger types: Manual, Scheduled, Webhook
   - Enable/disable workflows without deletion
-  - Workflow execution history with run status tracking (running/completed/failed)
+  - **Workflow Run History:** View detailed execution history for all workflows
+    - Click "Runs" button on any workflow card to open run history dialog
+    - Each run shows status (completed/failed/running), timestamp, and duration
+    - Expandable accordions display error details, input data, and step-by-step output
+    - Run output includes results from each step (step_1_result, step_2_result, etc.)
+    - Real-time status tracking with color-coded badges
   - Step reordering and configuration in UI
   - Database schema: workflows and workflow_runs tables
   - API endpoints: GET/POST /api/workflows, GET/PATCH/DELETE /api/workflows/:id, POST /api/workflows/:id/execute, GET /api/workflows/:id/runs
