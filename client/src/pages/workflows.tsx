@@ -72,7 +72,8 @@ export default function WorkflowsPage() {
 
   const executeMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest("POST", `/api/workflows/${id}/execute`, { input: {} });
+      const response = await apiRequest("POST", `/api/workflows/${id}/execute`, { input: {} });
+      return await response.json();
     },
     onSuccess: (data: any) => {
       toast({

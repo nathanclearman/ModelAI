@@ -114,15 +114,27 @@ export class WorkflowEngine {
 
     const openai = new OpenAI({ apiKey });
 
-    const response = await openai.chat.completions.create({
+    // Use max_completion_tokens for newer reasoning models
+    const reasoningModels = ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'o1', 'o3', 'o1-mini', 'o1-preview', 'o3-mini'];
+    const isReasoningModel = reasoningModels.some(m => model.model.toLowerCase().includes(m));
+
+    const requestParams: any = {
       model: model.model,
       messages: [
         { role: "system", content: model.systemPrompt },
         { role: "user", content: resolvedPrompt },
       ],
       temperature: model.temperature / 100,
-      max_tokens: model.maxTokens,
-    });
+    };
+
+    // Use appropriate token parameter based on model
+    if (isReasoningModel) {
+      requestParams.max_completion_tokens = model.maxTokens;
+    } else {
+      requestParams.max_tokens = model.maxTokens;
+    }
+
+    const response = await openai.chat.completions.create(requestParams);
 
     return {
       response: response.choices[0]?.message?.content || "",
