@@ -141,13 +141,11 @@ export class WorkflowEngine {
       requestParams.max_tokens = model.maxTokens;
     }
 
+    console.log("[Workflow] OpenAI request params:", JSON.stringify(requestParams, null, 2));
+    
     const response = await openai.chat.completions.create(requestParams);
 
-    console.log("[Workflow] OpenAI response:", JSON.stringify({
-      choices: response.choices?.length,
-      content: response.choices[0]?.message?.content,
-      tokens: response.usage?.total_tokens
-    }));
+    console.log("[Workflow] Full OpenAI response:", JSON.stringify(response, null, 2));
 
     return {
       response: response.choices[0]?.message?.content || "",
