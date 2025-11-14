@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, insertWorkspaceSchema, insertWorkspaceMemberSchema, insertApiKeySchema, workspaceRoles, type Message } from "@shared/schema";
+import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, insertWorkspaceSchema, insertWorkspaceMemberSchema, insertApiKeySchema, insertWebhookConfigurationSchema, workspaceRoles, type Message } from "@shared/schema";
 import OpenAI from "openai";
 import { isAuthenticated, isAdmin } from "./auth";
 import { generateApiKey, hashApiKey } from "./utils/apiKey";
