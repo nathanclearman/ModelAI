@@ -500,7 +500,7 @@ export default function FineTuningPage() {
                   <div>
                     <Label>Preview</Label>
                     <ScrollArea className="h-48 rounded-md border p-3">
-                      <pre className="text-xs font-mono">{fileContent}</pre>
+                      <pre className="text-xs font-mono whitespace-pre-wrap break-all">{fileContent}</pre>
                     </ScrollArea>
                   </div>
                 )}
