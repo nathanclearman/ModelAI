@@ -2199,6 +2199,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test fine-tuned model
+  app.post("/api/fine-tuning/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const { model, messages } = req.body;
+
+      if (!model || !messages || !Array.isArray(messages)) {
+        return res.status(400).json({ error: "model and messages array are required" });
+      }
+
+      const openai = new OpenAI({
+        apiKey: req.user.openaiApiKey || process.env.OPENAI_API_KEY
+      });
+
+      const completion = await openai.chat.completions.create({
+        model: model,
+        messages: messages,
+        max_tokens: 500,
+      });
+
+      res.json({ message: completion.choices[0]?.message?.content || "No response" });
+    } catch (error: any) {
+      console.error("Error testing fine-tuned model:", error);
+      res.status(500).json({ error: error.message || "Failed to test model" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
