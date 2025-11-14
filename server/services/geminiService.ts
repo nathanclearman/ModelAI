@@ -25,6 +25,8 @@ export interface ImageAnalysisResult {
  */
 export async function generateImage(prompt: string): Promise<ImageGenerationResult> {
   try {
+    console.log("[Gemini] Generating image with prompt:", prompt);
+    
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -33,16 +35,24 @@ export async function generateImage(prompt: string): Promise<ImageGenerationResu
       },
     });
 
+    console.log("[Gemini] Response structure:", JSON.stringify({
+      candidates: response.candidates?.length,
+      parts: response.candidates?.[0]?.content?.parts?.length,
+      partTypes: response.candidates?.[0]?.content?.parts?.map((p: any) => Object.keys(p))
+    }, null, 2));
+
     const candidate = response.candidates?.[0];
     const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
     
     if (!imagePart?.inlineData?.data) {
+      console.error("[Gemini] Full response:", JSON.stringify(response, null, 2));
       throw new Error("No image data in response");
     }
 
     const mimeType = imagePart.inlineData.mimeType || "image/png";
     const imageData = `data:${mimeType};base64,${imagePart.inlineData.data}`;
 
+    console.log("[Gemini] Successfully generated image, size:", imageData.length);
     return { imageData, mimeType };
   } catch (error: any) {
     console.error("Image generation error:", error);
