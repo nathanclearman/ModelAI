@@ -73,6 +73,7 @@ export type UserCostStat = {
 export interface IStorage {
   // User methods
   getUser(id: string): Promise<User | undefined>;
+  getUserWithPassword(id: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: UpsertUser): Promise<User>;
@@ -89,6 +90,7 @@ export interface IStorage {
   createVerificationToken(userId: string, token: string): Promise<void>;
   verifyEmail(token: string): Promise<User | undefined>;
   getUserByVerificationToken(token: string): Promise<User | undefined>;
+  deleteUser(userId: string): Promise<boolean>;
   
   // AI Model methods (all scoped to userId)
   createAIModel(userId: string, model: InsertAIModel): Promise<AIModel>;
@@ -220,6 +222,12 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // User methods
   async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+
+  async getUserWithPassword(id: string): Promise<User | undefined> {
+    // This method specifically returns user WITH password for verification purposes
     const result = await db.select().from(users).where(eq(users.id, id));
     return result[0];
   }
@@ -443,6 +451,110 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(eq(users.verificationToken, token));
     return result[0];
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    try {
+      // Check for multi-member workspaces BEFORE deleting anything
+      const ownedWorkspaces = await db
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.ownerId, userId));
+      
+      for (const workspace of ownedWorkspaces) {
+        const members = await db
+          .select()
+          .from(workspaceMembers)
+          .where(eq(workspaceMembers.workspaceId, workspace.id));
+        
+        // Block deletion if workspace has other members
+        const otherMembers = members.filter(m => m.userId !== userId);
+        if (otherMembers.length > 0) {
+          throw new Error(
+            `Cannot delete account: You own workspace "${workspace.name}" with other members. ` +
+            `Please transfer ownership or remove other members first.`
+          );
+        }
+      }
+      
+      // Delete all user data in a transaction for referential integrity
+      await db.transaction(async (tx) => {
+        // Delete in order of FK dependencies (deepest first)
+        
+        // Delete workflow runs for user's workflows
+        const userWorkflows = await tx
+          .select({ id: workflows.id })
+          .from(workflows)
+          .where(eq(workflows.userId, userId));
+        
+        for (const workflow of userWorkflows) {
+          await tx.delete(workflowRuns).where(eq(workflowRuns.workflowId, workflow.id));
+        }
+        
+        // Delete workflows
+        await tx.delete(workflows).where(eq(workflows.userId, userId));
+        
+        // Delete model versions for user's models
+        const userModels = await tx
+          .select({ id: aiModels.id })
+          .from(aiModels)
+          .where(eq(aiModels.userId, userId));
+        
+        for (const model of userModels) {
+          await tx.delete(modelVersions).where(eq(modelVersions.modelId, model.id));
+        }
+        
+        // Delete usage logs (references conversations and models)
+        await tx.delete(usageLogs).where(eq(usageLogs.userId, userId));
+        
+        // Delete conversations
+        await tx.delete(conversations).where(eq(conversations.userId, userId));
+        
+        // Delete AI models (including public marketplace models)
+        await tx.delete(aiModels).where(eq(aiModels.userId, userId));
+        
+        // Delete model likes
+        await tx.delete(modelLikes).where(eq(modelLikes.userId, userId));
+        
+        // Delete documents
+        await tx.delete(documents).where(eq(documents.userId, userId));
+        
+        // Delete image assets
+        await tx.delete(imageAssets).where(eq(imageAssets.userId, userId));
+        
+        // Delete API keys
+        await tx.delete(apiKeys).where(eq(apiKeys.userId, userId));
+        
+        // Delete fine-tuning jobs
+        await tx.delete(fineTuningJobs).where(eq(fineTuningJobs.userId, userId));
+        
+        // Delete fine-tuning files
+        await tx.delete(fineTuningFiles).where(eq(fineTuningFiles.userId, userId));
+        
+        // Delete webhook configurations
+        await tx.delete(webhookConfigurations).where(eq(webhookConfigurations.userId, userId));
+        
+        // Delete ALL workspace memberships (whether user is owner or member)
+        await tx.delete(workspaceMembers).where(eq(workspaceMembers.userId, userId));
+        
+        // Delete workspaces owned by user (we already checked they're solo)
+        for (const workspace of ownedWorkspaces) {
+          await tx.delete(workspaces).where(eq(workspaces.id, workspace.id));
+        }
+        
+        // Delete Stripe checkout sessions
+        await tx.delete(stripeCheckoutSessions).where(eq(stripeCheckoutSessions.userId, userId));
+        
+        // Finally, delete the user
+        await tx.delete(users).where(eq(users.id, userId));
+      });
+      
+      console.log(`[Storage] Successfully deleted user ${userId} and all associated data`);
+      return true;
+    } catch (error) {
+      console.error("[Storage] Failed to delete user:", error);
+      throw error;
+    }
   }
 
   // AI Model methods (all scoped to userId)

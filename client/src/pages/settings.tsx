@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
@@ -21,7 +22,7 @@ export default function Settings() {
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [isApiKeySet, setIsApiKeySet] = useState(false);
-  const { toast } = useToast();
+  const { toast} = useToast();
   const [location, setLocation] = useLocation();
 
   // Account information state
@@ -31,6 +32,10 @@ export default function Settings() {
 
   // Coupon code state
   const [couponCode, setCouponCode] = useState("");
+
+  // Delete account dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
 
   // Fetch current user data
   const { data: user, isLoading: isLoadingUser } = useQuery<User>({
@@ -128,6 +133,47 @@ export default function Settings() {
       });
     },
   });
+
+  // Delete account mutation
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (password: string) => {
+      return await apiRequest("DELETE", "/api/auth/user", { password });
+    },
+    onSuccess: () => {
+      // Close dialog and reset password state
+      setShowDeleteDialog(false);
+      setDeletePassword("");
+      
+      queryClient.clear();
+      toast({
+        title: "Account Deleted",
+        description: "Your account has been permanently deleted. Redirecting...",
+      });
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
+    },
+    onError: (error: any) => {
+      // Don't close dialog on error, let user try again
+      toast({
+        variant: "destructive",
+        title: "Deletion Failed",
+        description: error.message || "Failed to delete account. Please try again.",
+      });
+    },
+  });
+
+  const handleDeleteAccount = () => {
+    if (!deletePassword) {
+      toast({
+        variant: "destructive",
+        title: "Password Required",
+        description: "Please enter your password to confirm account deletion.",
+      });
+      return;
+    }
+    deleteAccountMutation.mutate(deletePassword);
+  };
 
   useEffect(() => {
     const savedKey = sessionStorage.getItem("openai_api_key");
@@ -686,14 +732,72 @@ export default function Settings() {
       <Card className="border-destructive/50">
         <CardHeader>
           <CardTitle className="text-destructive">Account Deletion</CardTitle>
-          <CardDescription>Warning: You can not go back after deleting your account.</CardDescription>
+          <CardDescription>Warning: This action is permanent and cannot be undone. All your data including AI models, conversations, and files will be permanently deleted.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="destructive" data-testid="button-delete-account">
-            Delete Account
+          <Button 
+            variant="destructive" 
+            data-testid="button-delete-account"
+            onClick={() => setShowDeleteDialog(true)}
+            disabled={deleteAccountMutation.isPending}
+          >
+            {deleteAccountMutation.isPending ? "Deleting..." : "Delete Account"}
           </Button>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                This action cannot be undone. This will permanently delete your account and remove all your data from our servers including:
+              </p>
+              <ul className="list-disc list-inside text-sm space-y-1">
+                <li>All AI models and configurations</li>
+                <li>All conversations and message history</li>
+                <li>All uploaded documents and generated images</li>
+                <li>All API keys and workflows</li>
+                <li>All fine-tuning files and jobs</li>
+              </ul>
+              <p className="mt-4">
+                Please enter your password to confirm:
+              </p>
+              <Input
+                type="password"
+                placeholder="Enter your password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                data-testid="input-delete-password"
+                className="mt-2"
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => {
+                setDeletePassword("");
+                setShowDeleteDialog(false);
+              }}
+              data-testid="button-cancel-delete"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteAccount();
+              }}
+              disabled={deleteAccountMutation.isPending || !deletePassword}
+              data-testid="button-confirm-delete"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteAccountMutation.isPending ? "Deleting..." : "Delete Account Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

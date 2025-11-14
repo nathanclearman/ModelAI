@@ -14,6 +14,7 @@ import { processDocument } from "./services/documentService";
 import { storeDocument, deleteDocument as deleteDocumentFile } from "./services/documentStore";
 import multer from "multer";
 import Stripe from "stripe";
+import bcrypt from "bcryptjs";
 
 // Initialize Stripe only if key is available
 const stripe = process.env.STRIPE_SECRET_KEY 
@@ -58,6 +59,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid user data", details: error.errors });
       }
       res.status(500).json({ message: "Failed to update user" });
+    }
+  });
+
+  // Delete account
+  app.delete('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { password: providedPassword } = req.body;
+      
+      // Require password verification for account deletion
+      if (!providedPassword) {
+        return res.status(400).json({ error: "Password is required to delete your account" });
+      }
+      
+      // Get user with password to verify (getUserWithPassword includes password field)
+      const user = await storage.getUserWithPassword(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      // Verify password
+      const passwordMatch = await bcrypt.compare(providedPassword, user.password);
+      if (!passwordMatch) {
+        return res.status(401).json({ error: "Incorrect password" });
+      }
+      
+      // Delete user and all associated data
+      await storage.deleteUser(userId);
+      
+      // Logout and destroy session properly
+      await new Promise<void>((resolve, reject) => {
+        req.logout((err: Error) => {
+          if (err) {
+            console.error("Error logging out after account deletion:", err);
+            return reject(err);
+          }
+          req.session.destroy((destroyErr: Error) => {
+            if (destroyErr) {
+              console.error("Error destroying session after account deletion:", destroyErr);
+              return reject(destroyErr);
+            }
+            res.clearCookie('connect.sid');
+            resolve();
+          });
+        });
+      });
+      
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting user account:", error);
+      if (error.message && error.message.includes("workspace")) {
+        return res.status(400).json({ error: error.message });
+      }
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to delete account" });
+      }
     }
   });
 
