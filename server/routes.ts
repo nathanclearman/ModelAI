@@ -1880,6 +1880,300 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fine-tuning routes
+  
+  // Upload training file
+  app.post("/api/fine-tuning/files", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { fileName, fileContent, purpose = "fine-tune" } = req.body;
+
+      if (!fileName || !fileContent) {
+        return res.status(400).json({ error: "fileName and fileContent are required" });
+      }
+
+      // File size validation (10MB limit)
+      const fileSizeBytes = Buffer.byteLength(fileContent, 'utf-8');
+      const maxSizeMB = 10;
+      const maxSizeBytes = maxSizeMB * 1024 * 1024;
+      
+      if (fileSizeBytes > maxSizeBytes) {
+        return res.status(400).json({ 
+          error: `File size (${(fileSizeBytes / 1024 / 1024).toFixed(2)} MB) exceeds maximum allowed size of ${maxSizeMB} MB` 
+        });
+      }
+
+      // Validate JSONL format (basic check)
+      const lines = fileContent.trim().split('\n');
+      if (lines.length === 0) {
+        return res.status(400).json({ error: "File is empty" });
+      }
+
+      // Validate each line is valid JSON
+      for (let i = 0; i < lines.length; i++) {
+        try {
+          const parsed = JSON.parse(lines[i]);
+          if (!parsed.messages || !Array.isArray(parsed.messages)) {
+            return res.status(400).json({ 
+              error: `Invalid format at line ${i + 1}: Each line must have a 'messages' array` 
+            });
+          }
+        } catch (e) {
+          return res.status(400).json({ 
+            error: `Invalid JSON at line ${i + 1}: ${e instanceof Error ? e.message : 'Unknown error'}` 
+          });
+        }
+      }
+
+      // Create temporary file buffer
+      const fileBuffer = Buffer.from(fileContent, 'utf-8');
+
+      // Upload to OpenAI using toFile helper (works in Node.js)
+      const openai = new OpenAI({
+        apiKey: req.user.openaiApiKey || process.env.OPENAI_API_KEY
+      });
+
+      // Use OpenAI's toFile helper which works in Node.js environment
+      const { toFile } = await import('openai/uploads');
+      const fileToUpload = await toFile(fileBuffer, fileName, { type: 'application/jsonl' });
+
+      const uploadedFile = await openai.files.create({
+        file: fileToUpload,
+        purpose: purpose as "fine-tune",
+      });
+
+      // Store file record in database
+      const fileRecord = await storage.createFineTuningFile(userId, {
+        openaiFileId: uploadedFile.id,
+        fileName,
+        fileSize: fileBuffer.length,
+        purpose,
+        exampleCount: lines.length,
+        status: 'uploaded',
+      });
+
+      res.json(fileRecord);
+    } catch (error: any) {
+      console.error("Error uploading training file:", error);
+      res.status(500).json({ error: error.message || "Failed to upload training file" });
+    }
+  });
+
+  // List user's training files
+  app.get("/api/fine-tuning/files", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const files = await storage.getUserFineTuningFiles(userId);
+      res.json(files);
+    } catch (error) {
+      console.error("Error fetching training files:", error);
+      res.status(500).json({ error: "Failed to fetch training files" });
+    }
+  });
+
+  // Delete training file
+  app.delete("/api/fine-tuning/files/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const file = await storage.getFineTuningFile(userId, req.params.id);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      // Delete from OpenAI if openaiFileId exists
+      if (file.openaiFileId) {
+        try {
+          const openai = new OpenAI({
+            apiKey: req.user.openaiApiKey || process.env.OPENAI_API_KEY
+          });
+          await openai.files.delete(file.openaiFileId);
+        } catch (error) {
+          console.error("Error deleting file from OpenAI:", error);
+          // Continue even if OpenAI deletion fails
+        }
+      }
+
+      const success = await storage.deleteFineTuningFile(userId, req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting training file:", error);
+      res.status(500).json({ error: "Failed to delete training file" });
+    }
+  });
+
+  // Create fine-tuning job
+  app.post("/api/fine-tuning/jobs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { trainingFileId, validationFileId, baseModel, suffix, hyperparameters } = req.body;
+
+      if (!trainingFileId || !baseModel) {
+        return res.status(400).json({ error: "trainingFileId and baseModel are required" });
+      }
+
+      // Get training file
+      const trainingFile = await storage.getFineTuningFile(userId, trainingFileId);
+      if (!trainingFile || !trainingFile.openaiFileId) {
+        return res.status(404).json({ error: "Training file not found" });
+      }
+
+      // Get validation file if provided
+      let validationOpenaiFileId = null;
+      if (validationFileId) {
+        const validationFile = await storage.getFineTuningFile(userId, validationFileId);
+        if (!validationFile || !validationFile.openaiFileId) {
+          return res.status(404).json({ error: "Validation file not found" });
+        }
+        validationOpenaiFileId = validationFile.openaiFileId;
+      }
+
+      // Create fine-tuning job on OpenAI
+      const openai = new OpenAI({
+        apiKey: req.user.openaiApiKey || process.env.OPENAI_API_KEY
+      });
+
+      const jobParams: any = {
+        training_file: trainingFile.openaiFileId,
+        model: baseModel,
+      };
+
+      if (validationOpenaiFileId) {
+        jobParams.validation_file = validationOpenaiFileId;
+      }
+
+      if (suffix) {
+        jobParams.suffix = suffix;
+      }
+
+      if (hyperparameters) {
+        jobParams.hyperparameters = hyperparameters;
+      }
+
+      const openaiJob = await openai.fineTuning.jobs.create(jobParams);
+
+      // Store job record in database
+      const job = await storage.createFineTuningJob(userId, {
+        openaiJobId: openaiJob.id,
+        trainingFileId,
+        validationFileId: validationFileId || null,
+        baseModel,
+        fineTunedModel: openaiJob.fine_tuned_model,
+        suffix: suffix || null,
+        hyperparameters: hyperparameters || {},
+        status: openaiJob.status,
+        trainedTokens: openaiJob.trained_tokens || null,
+        error: openaiJob.error?.message || null,
+      });
+
+      res.json(job);
+    } catch (error: any) {
+      console.error("Error creating fine-tuning job:", error);
+      res.status(500).json({ error: error.message || "Failed to create fine-tuning job" });
+    }
+  });
+
+  // List user's fine-tuning jobs
+  app.get("/api/fine-tuning/jobs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const jobs = await storage.getUserFineTuningJobs(userId);
+      res.json(jobs);
+    } catch (error) {
+      console.error("Error fetching fine-tuning jobs:", error);
+      res.status(500).json({ error: "Failed to fetch fine-tuning jobs" });
+    }
+  });
+
+  // Get specific fine-tuning job
+  app.get("/api/fine-tuning/jobs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const job = await storage.getFineTuningJob(userId, req.params.id);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      res.json(job);
+    } catch (error) {
+      console.error("Error fetching fine-tuning job:", error);
+      res.status(500).json({ error: "Failed to fetch fine-tuning job" });
+    }
+  });
+
+  // Sync job status from OpenAI
+  app.post("/api/fine-tuning/jobs/:id/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const job = await storage.getFineTuningJob(userId, req.params.id);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      if (!job.openaiJobId) {
+        return res.status(400).json({ error: "Job has no OpenAI ID" });
+      }
+
+      // Fetch latest status from OpenAI
+      const openai = new OpenAI({
+        apiKey: req.user.openaiApiKey || process.env.OPENAI_API_KEY
+      });
+
+      const openaiJob = await openai.fineTuning.jobs.retrieve(job.openaiJobId);
+
+      // Update job in database
+      const updatedJob = await storage.updateFineTuningJob(userId, req.params.id, {
+        status: openaiJob.status,
+        fineTunedModel: openaiJob.fine_tuned_model,
+        trainedTokens: openaiJob.trained_tokens || null,
+        error: openaiJob.error?.message || null,
+        finishedAt: openaiJob.finished_at ? new Date(openaiJob.finished_at * 1000) : null,
+      });
+
+      res.json(updatedJob);
+    } catch (error: any) {
+      console.error("Error syncing job status:", error);
+      res.status(500).json({ error: error.message || "Failed to sync job status" });
+    }
+  });
+
+  // Cancel fine-tuning job
+  app.post("/api/fine-tuning/jobs/:id/cancel", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const job = await storage.getFineTuningJob(userId, req.params.id);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      if (!job.openaiJobId) {
+        return res.status(400).json({ error: "Job has no OpenAI ID" });
+      }
+
+      // Cancel job on OpenAI
+      const openai = new OpenAI({
+        apiKey: req.user.openaiApiKey || process.env.OPENAI_API_KEY
+      });
+
+      await openai.fineTuning.jobs.cancel(job.openaiJobId);
+
+      // Update job status in database
+      const updatedJob = await storage.cancelFineTuningJob(userId, req.params.id);
+
+      res.json(updatedJob);
+    } catch (error: any) {
+      console.error("Error cancelling fine-tuning job:", error);
+      res.status(500).json({ error: error.message || "Failed to cancel fine-tuning job" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

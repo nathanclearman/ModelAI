@@ -392,6 +392,58 @@ export const insertWorkflowRunSchema = createInsertSchema(workflowRuns).omit({
 export type InsertWorkflowRun = z.infer<typeof insertWorkflowRunSchema>;
 export type WorkflowRun = typeof workflowRuns.$inferSelect;
 
+// Fine-tuning files storage
+export const fineTuningFiles = pgTable("fine_tuning_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  openaiFileId: varchar("openai_file_id"),
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  purpose: text("purpose").notNull().default("fine-tune"),
+  exampleCount: integer("example_count"),
+  status: text("status").notNull().default("uploaded"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFineTuningFileSchema = createInsertSchema(fineTuningFiles).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+export type InsertFineTuningFile = z.infer<typeof insertFineTuningFileSchema>;
+export type FineTuningFile = typeof fineTuningFiles.$inferSelect;
+
+// Fine-tuning jobs
+export const fineTuningJobs = pgTable("fine_tuning_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  openaiJobId: varchar("openai_job_id"),
+  trainingFileId: varchar("training_file_id").notNull(),
+  validationFileId: varchar("validation_file_id"),
+  baseModel: text("base_model").notNull(),
+  fineTunedModel: text("fine_tuned_model"),
+  suffix: text("suffix"),
+  hyperparameters: jsonb("hyperparameters").default({}),
+  status: text("status").notNull().default("pending"),
+  trainedTokens: integer("trained_tokens"),
+  estimatedCost: integer("estimated_cost"),
+  error: text("error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  finishedAt: timestamp("finished_at"),
+});
+
+export const insertFineTuningJobSchema = createInsertSchema(fineTuningJobs).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertFineTuningJob = z.infer<typeof insertFineTuningJobSchema>;
+export type FineTuningJob = typeof fineTuningJobs.$inferSelect;
+
 // Subscription plan configuration (server-side only, not stored in DB)
 export const subscriptionPlans = {
   free: {

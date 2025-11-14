@@ -23,6 +23,7 @@ import Marketplace from "@/pages/marketplace";
 import ApiKeys from "@/pages/api-keys";
 import Workspaces from "@/pages/workspaces";
 import Workflows from "@/pages/workflows";
+import FineTuning from "@/pages/fine-tuning";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -55,6 +56,7 @@ function Router() {
       {isAuthenticated && <Route path="/api-keys" component={ApiKeys} />}
       {isAuthenticated && <Route path="/workspaces" component={Workspaces} />}
       {isAuthenticated && <Route path="/workflows" component={Workflows} />}
+      {isAuthenticated && <Route path="/fine-tuning" component={FineTuning} />}
       {isAuthenticated && <Route path="/admin" component={Admin} />}
       <Route component={NotFound} />
     </Switch>

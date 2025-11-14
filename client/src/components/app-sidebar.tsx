@@ -1,4 +1,4 @@
-import { Home, Layers, History, Settings, Plus, Upload, BookTemplate, Zap, Store, Key, Users } from "lucide-react";
+import { Home, Layers, History, Settings, Plus, Upload, BookTemplate, Zap, Store, Key, Users, Brain } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -40,6 +40,11 @@ const menuItems = [
     title: "Workflows",
     url: "/workflows",
     icon: Zap,
+  },
+  {
+    title: "Fine-Tuning",
+    url: "/fine-tuning",
+    icon: Brain,
   },
   {
     title: "API Keys",

@@ -17,6 +17,8 @@ import {
   stripeCheckoutSessions,
   workflows,
   workflowRuns,
+  fineTuningFiles,
+  fineTuningJobs,
   type User,
   type UpsertUser,
   type AIModel,
@@ -43,6 +45,10 @@ import {
   type InsertWorkflow,
   type WorkflowRun,
   type InsertWorkflowRun,
+  type FineTuningFile,
+  type InsertFineTuningFile,
+  type FineTuningJob,
+  type InsertFineTuningJob,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -185,6 +191,20 @@ export interface IStorage {
   getWorkflowRun(id: string): Promise<WorkflowRun | undefined>;
   getWorkflowRuns(workflowId: string): Promise<WorkflowRun[]>;
   updateWorkflowRun(id: string, run: Partial<InsertWorkflowRun>): Promise<WorkflowRun | undefined>;
+  
+  // Fine-tuning file methods
+  createFineTuningFile(userId: string, file: InsertFineTuningFile): Promise<FineTuningFile>;
+  getFineTuningFile(userId: string, id: string): Promise<FineTuningFile | undefined>;
+  getUserFineTuningFiles(userId: string): Promise<FineTuningFile[]>;
+  updateFineTuningFile(userId: string, id: string, data: Partial<InsertFineTuningFile>): Promise<FineTuningFile | undefined>;
+  deleteFineTuningFile(userId: string, id: string): Promise<boolean>;
+  
+  // Fine-tuning job methods
+  createFineTuningJob(userId: string, job: InsertFineTuningJob): Promise<FineTuningJob>;
+  getFineTuningJob(userId: string, id: string): Promise<FineTuningJob | undefined>;
+  getUserFineTuningJobs(userId: string): Promise<FineTuningJob[]>;
+  updateFineTuningJob(userId: string, id: string, data: Partial<InsertFineTuningJob>): Promise<FineTuningJob | undefined>;
+  cancelFineTuningJob(userId: string, id: string): Promise<FineTuningJob | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1169,6 +1189,91 @@ export class DatabaseStorage implements IStorage {
       .update(workflowRuns)
       .set(run)
       .where(eq(workflowRuns.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Fine-tuning file methods
+  async createFineTuningFile(userId: string, file: InsertFineTuningFile): Promise<FineTuningFile> {
+    const [created] = await db
+      .insert(fineTuningFiles)
+      .values({ ...file, userId })
+      .returning();
+    return created;
+  }
+
+  async getFineTuningFile(userId: string, id: string): Promise<FineTuningFile | undefined> {
+    const result = await db
+      .select()
+      .from(fineTuningFiles)
+      .where(and(eq(fineTuningFiles.id, id), eq(fineTuningFiles.userId, userId)));
+    return result[0];
+  }
+
+  async getUserFineTuningFiles(userId: string): Promise<FineTuningFile[]> {
+    return db
+      .select()
+      .from(fineTuningFiles)
+      .where(eq(fineTuningFiles.userId, userId))
+      .orderBy(desc(fineTuningFiles.createdAt));
+  }
+
+  async updateFineTuningFile(userId: string, id: string, data: Partial<InsertFineTuningFile>): Promise<FineTuningFile | undefined> {
+    const result = await db
+      .update(fineTuningFiles)
+      .set(data)
+      .where(and(eq(fineTuningFiles.id, id), eq(fineTuningFiles.userId, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async deleteFineTuningFile(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(fineTuningFiles)
+      .where(and(eq(fineTuningFiles.id, id), eq(fineTuningFiles.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Fine-tuning job methods
+  async createFineTuningJob(userId: string, job: InsertFineTuningJob): Promise<FineTuningJob> {
+    const [created] = await db
+      .insert(fineTuningJobs)
+      .values({ ...job, userId })
+      .returning();
+    return created;
+  }
+
+  async getFineTuningJob(userId: string, id: string): Promise<FineTuningJob | undefined> {
+    const result = await db
+      .select()
+      .from(fineTuningJobs)
+      .where(and(eq(fineTuningJobs.id, id), eq(fineTuningJobs.userId, userId)));
+    return result[0];
+  }
+
+  async getUserFineTuningJobs(userId: string): Promise<FineTuningJob[]> {
+    return db
+      .select()
+      .from(fineTuningJobs)
+      .where(eq(fineTuningJobs.userId, userId))
+      .orderBy(desc(fineTuningJobs.createdAt));
+  }
+
+  async updateFineTuningJob(userId: string, id: string, data: Partial<InsertFineTuningJob>): Promise<FineTuningJob | undefined> {
+    const result = await db
+      .update(fineTuningJobs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(fineTuningJobs.id, id), eq(fineTuningJobs.userId, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async cancelFineTuningJob(userId: string, id: string): Promise<FineTuningJob | undefined> {
+    const result = await db
+      .update(fineTuningJobs)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(and(eq(fineTuningJobs.id, id), eq(fineTuningJobs.userId, userId)))
       .returning();
     return result[0];
   }
