@@ -1903,13 +1903,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Validate JSONL format (basic check)
+      // Validate JSONL format and clean data
       const lines = fileContent.trim().split('\n');
       if (lines.length === 0) {
         return res.status(400).json({ error: "File is empty" });
       }
 
-      // Validate each line is valid JSON
+      // Validate and clean each line - remove extra fields, keep only "messages"
+      const cleanedLines: string[] = [];
       for (let i = 0; i < lines.length; i++) {
         try {
           const parsed = JSON.parse(lines[i]);
@@ -1918,6 +1919,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               error: `Invalid format at line ${i + 1}: Each line must have a 'messages' array` 
             });
           }
+          
+          // Clean the data: only keep "messages" field to avoid OpenAI format errors
+          // Remove extra fields like "timestamp", "id", etc.
+          const cleanedData = {
+            messages: parsed.messages
+          };
+          
+          cleanedLines.push(JSON.stringify(cleanedData));
         } catch (e) {
           return res.status(400).json({ 
             error: `Invalid JSON at line ${i + 1}: ${e instanceof Error ? e.message : 'Unknown error'}` 
@@ -1925,8 +1934,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create temporary file buffer
-      const fileBuffer = Buffer.from(fileContent, 'utf-8');
+      // Create cleaned JSONL content
+      const cleanedContent = cleanedLines.join('\n');
+      const fileBuffer = Buffer.from(cleanedContent, 'utf-8');
 
       // Upload to OpenAI using toFile helper (works in Node.js)
       const openai = new OpenAI({
