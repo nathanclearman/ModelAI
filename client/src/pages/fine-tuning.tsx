@@ -60,6 +60,7 @@ export default function FineTuningPage() {
   const { toast } = useToast();
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showCreateJobDialog, setShowCreateJobDialog] = useState(false);
+  const [uploadMethod, setUploadMethod] = useState<"file" | "text">("file");
   const [fileName, setFileName] = useState("");
   const [fileContent, setFileContent] = useState("");
   const [selectedTrainingFile, setSelectedTrainingFile] = useState("");
@@ -172,6 +173,29 @@ export default function FineTuningPage() {
       });
     },
   });
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Auto-set filename from selected file
+    setFileName(file.name);
+
+    // Read file content
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setFileContent(content);
+    };
+    reader.onerror = () => {
+      toast({
+        title: "File read error",
+        description: "Failed to read the file. Please try again.",
+        variant: "destructive",
+      });
+    };
+    reader.readAsText(file);
+  };
 
   const handleUploadFile = () => {
     if (!fileName || !fileContent) {
@@ -447,48 +471,87 @@ export default function FineTuningPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="fileName">File Name</Label>
-              <Input
-                id="fileName"
-                placeholder="training-data.jsonl"
-                value={fileName}
-                onChange={(e) => setFileName(e.target.value)}
-                data-testid="input-file-name"
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="fileContent">File Content (JSONL)</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setFileContent(EXAMPLE_JSONL)}
-                  data-testid="button-use-example"
-                >
-                  Use Example
-                </Button>
-              </div>
-              <Textarea
-                id="fileContent"
-                placeholder={EXAMPLE_JSONL}
-                value={fileContent}
-                onChange={(e) => setFileContent(e.target.value)}
-                className="font-mono text-xs"
-                rows={12}
-                data-testid="textarea-file-content"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Each line must be valid JSON with a "messages" array containing role and content fields.
-              </p>
-            </div>
+            <Tabs value={uploadMethod} onValueChange={(v) => setUploadMethod(v as "file" | "text")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="file" data-testid="tab-upload-file">
+                  Upload File
+                </TabsTrigger>
+                <TabsTrigger value="text" data-testid="tab-paste-text">
+                  Paste Text
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="file" className="space-y-4">
+                <div>
+                  <Label htmlFor="file-upload">Select JSONL File</Label>
+                  <Input
+                    id="file-upload"
+                    type="file"
+                    accept=".jsonl,.json"
+                    onChange={handleFileSelect}
+                    data-testid="input-file-upload"
+                    className="cursor-pointer"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select a .jsonl file from your computer
+                  </p>
+                </div>
+                {fileContent && (
+                  <div>
+                    <Label>Preview</Label>
+                    <ScrollArea className="h-48 rounded-md border p-3">
+                      <pre className="text-xs font-mono">{fileContent}</pre>
+                    </ScrollArea>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="text" className="space-y-4">
+                <div>
+                  <Label htmlFor="fileName">File Name</Label>
+                  <Input
+                    id="fileName"
+                    placeholder="training-data.jsonl"
+                    value={fileName}
+                    onChange={(e) => setFileName(e.target.value)}
+                    data-testid="input-file-name"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label htmlFor="fileContent">File Content (JSONL)</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFileContent(EXAMPLE_JSONL)}
+                      data-testid="button-use-example"
+                    >
+                      Use Example
+                    </Button>
+                  </div>
+                  <Textarea
+                    id="fileContent"
+                    placeholder={EXAMPLE_JSONL}
+                    value={fileContent}
+                    onChange={(e) => setFileContent(e.target.value)}
+                    className="font-mono text-xs"
+                    rows={12}
+                    data-testid="textarea-file-content"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Each line must be valid JSON with a "messages" array containing role and content fields.
+                  </p>
+                </div>
+              </TabsContent>
+            </Tabs>
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowUploadDialog(false)} data-testid="button-cancel-upload">
                 Cancel
               </Button>
               <Button 
                 onClick={handleUploadFile} 
-                disabled={uploadFileMutation.isPending}
+                disabled={uploadFileMutation.isPending || !fileName || !fileContent}
                 data-testid="button-submit-upload"
               >
                 {uploadFileMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
