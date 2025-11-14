@@ -14,12 +14,12 @@ import { storeDocument, deleteDocument as deleteDocumentFile } from "./services/
 import multer from "multer";
 import Stripe from "stripe";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
-}
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-10-29.clover",
-});
+// Initialize Stripe only if key is available
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-10-29.clover",
+    })
+  : null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -186,6 +186,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stripe checkout session
   app.post('/api/create-checkout-session', isAuthenticated, async (req: any, res) => {
     try {
+      if (!stripe) {
+        return res.status(503).json({ error: "Payment system is not configured" });
+      }
+
       const baseUrl = process.env.REPLIT_DEV_DOMAIN 
         ? `https://${process.env.REPLIT_DEV_DOMAIN}`
         : 'http://localhost:5000';
@@ -223,6 +227,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Stripe webhook endpoint
   app.post('/api/webhook/stripe', async (req: any, res) => {
+    if (!stripe) {
+      return res.status(503).send('Payment system is not configured');
+    }
+
     const sig = req.headers['stripe-signature'];
 
     if (!sig) {
@@ -287,7 +295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // In development, webhooks don't work, so check with Stripe directly
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' && stripe) {
           try {
             const session = await stripe.checkout.sessions.retrieve(session_id);
             
