@@ -1920,10 +1920,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
           
-          // Clean the data: only keep "messages" field to avoid OpenAI format errors
-          // Remove extra fields like "timestamp", "id", etc.
+          // Clean each message: only keep "role" and "content" fields
+          // Remove extra fields like "timestamp", "name", "id", etc. from individual messages
+          const cleanedMessages = parsed.messages.map((msg: any) => {
+            const cleaned: any = {
+              role: msg.role,
+              content: msg.content
+            };
+            
+            // Keep "name" field only if present (it's optional for function calls)
+            if (msg.name) {
+              cleaned.name = msg.name;
+            }
+            
+            return cleaned;
+          });
+          
+          // Clean the data: only keep "messages" field at top level
           const cleanedData = {
-            messages: parsed.messages
+            messages: cleanedMessages
           };
           
           cleanedLines.push(JSON.stringify(cleanedData));
