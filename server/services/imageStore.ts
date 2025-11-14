@@ -54,9 +54,21 @@ export class LocalTempImageStore implements IImageStore {
 
   constructor() {
     // Use the server's base URL for accessing images
-    this.baseUrl = process.env.REPLIT_DEV_DOMAIN
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : "http://localhost:5000";
+    // In production (published), use REPLIT_DOMAINS (first domain from the list)
+    // In development, use REPLIT_DEV_DOMAIN
+    // Fallback to localhost for local development
+    if (process.env.REPLIT_DOMAINS) {
+      // Published site - use the first domain from the comma-separated list
+      const domains = process.env.REPLIT_DOMAINS.split(',');
+      this.baseUrl = `https://${domains[0].trim()}`;
+    } else if (process.env.REPLIT_DEV_DOMAIN) {
+      // Development site
+      this.baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN}`;
+    } else {
+      // Local development
+      this.baseUrl = "http://localhost:5000";
+    }
+    console.log("[ImageStore] Using base URL:", this.baseUrl);
   }
 
   private async ensureDirectory(): Promise<void> {
