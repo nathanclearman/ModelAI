@@ -130,7 +130,9 @@ export class WorkflowEngine {
         ? `${model.systemPrompt}\n\n${resolvedPrompt}`
         : resolvedPrompt;
       requestParams.messages.push({ role: "user", content: combinedPrompt });
-      requestParams.max_completion_tokens = model.maxTokens;
+      // Reasoning models need much higher token limits (they use tokens for thinking)
+      // Use at least 4x the configured tokens, minimum 2000
+      requestParams.max_completion_tokens = Math.max(model.maxTokens * 4, 2000);
     } else {
       // Standard models support system messages and temperature
       requestParams.messages.push(
