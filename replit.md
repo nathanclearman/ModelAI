@@ -22,6 +22,7 @@ The platform includes:
   - Email verification required: New users receive a verification email and must verify before login
   - Verification tokens expire in 24 hours for security
   - Auto-login after successful email verification
+  - Production-ready: Email verification links use REPLIT_DOMAINS for published apps
   - User menu with avatar showing user initials
   - Dropdown menu displaying name and email
   - Settings shortcut from user menu

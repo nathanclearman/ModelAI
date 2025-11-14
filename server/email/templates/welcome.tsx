@@ -22,8 +22,10 @@ export const WelcomeEmail = ({
   subscriptionTier = 'Free',
   verificationToken = '',
 }: WelcomeEmailProps) => {
-  // Use the Replit domain or fallback to localhost (with http for dev)
-  const domain = process.env.REPLIT_DEV_DOMAIN;
+  // Use production domain if available, otherwise dev domain, fallback to localhost
+  const productionDomain = process.env.REPLIT_DOMAINS?.split(',')[0]; // First domain is the published one
+  const devDomain = process.env.REPLIT_DEV_DOMAIN;
+  const domain = productionDomain || devDomain;
   const protocol = domain ? 'https' : 'http';
   const host = domain || 'localhost:5000';
   const verificationUrl = `${protocol}://${host}/verify-email?token=${verificationToken}`;
