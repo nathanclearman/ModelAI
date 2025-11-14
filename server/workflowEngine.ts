@@ -3,6 +3,7 @@ import type { Workflow, WorkflowRun } from "@shared/schema";
 import OpenAI from "openai";
 import { geminiService } from "./services/geminiService";
 import { imageStore } from "./services/imageStore";
+import { checkImagePrompt } from "./utils/contentFilter";
 
 type WorkflowStep = {
   id: string;
@@ -158,6 +159,17 @@ export class WorkflowEngine {
   private async executeImageGeneration(step: WorkflowStep, context: any, userId: string): Promise<any> {
     const { prompt } = step.config;
     const resolvedPrompt = this.resolveVariables(prompt, context);
+
+    // Check content filter
+    const filterResult = checkImagePrompt(resolvedPrompt);
+    if (!filterResult.allowed) {
+      console.log("[Workflow] Image generation blocked:", filterResult.reason);
+      return {
+        prompt: resolvedPrompt,
+        imageGenerated: false,
+        error: filterResult.reason || "Content blocked",
+      };
+    }
 
     try {
       const { imageData } = await geminiService.generateImage(resolvedPrompt);

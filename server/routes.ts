@@ -6,6 +6,7 @@ import OpenAI from "openai";
 import { isAuthenticated, isAdmin } from "./auth";
 import { generateApiKey, hashApiKey } from "./utils/apiKey";
 import { calculateCost } from "./utils/costCalculator";
+import { checkImagePrompt } from "./utils/contentFilter";
 import { geminiService } from "./services/geminiService";
 import { checkImageQuota, incrementImageUsage } from "./middleware/imageAccess";
 import { imageStore } from "./services/imageStore";
@@ -725,6 +726,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!modelId || !prompt) {
         return res.status(400).json({ error: "Model ID and prompt are required" });
+      }
+
+      // Check content filter
+      const filterResult = checkImagePrompt(prompt);
+      if (!filterResult.allowed) {
+        return res.status(400).json({ error: filterResult.reason });
       }
 
       // Generate image using Gemini
