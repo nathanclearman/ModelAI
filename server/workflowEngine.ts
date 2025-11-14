@@ -120,21 +120,34 @@ export class WorkflowEngine {
 
     const requestParams: any = {
       model: model.model,
-      messages: [
-        { role: "system", content: model.systemPrompt },
-        { role: "user", content: resolvedPrompt },
-      ],
-      temperature: model.temperature / 100,
+      messages: [],
     };
 
-    // Use appropriate token parameter based on model
+    // Reasoning models don't support system messages or temperature
     if (isReasoningModel) {
+      // Combine system prompt with user message for reasoning models
+      const combinedPrompt = model.systemPrompt 
+        ? `${model.systemPrompt}\n\n${resolvedPrompt}`
+        : resolvedPrompt;
+      requestParams.messages.push({ role: "user", content: combinedPrompt });
       requestParams.max_completion_tokens = model.maxTokens;
     } else {
+      // Standard models support system messages and temperature
+      requestParams.messages.push(
+        { role: "system", content: model.systemPrompt },
+        { role: "user", content: resolvedPrompt }
+      );
+      requestParams.temperature = model.temperature / 100;
       requestParams.max_tokens = model.maxTokens;
     }
 
     const response = await openai.chat.completions.create(requestParams);
+
+    console.log("[Workflow] OpenAI response:", JSON.stringify({
+      choices: response.choices?.length,
+      content: response.choices[0]?.message?.content,
+      tokens: response.usage?.total_tokens
+    }));
 
     return {
       response: response.choices[0]?.message?.content || "",
