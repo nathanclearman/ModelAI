@@ -50,7 +50,8 @@ export class WorkflowEngine {
             output: context,
             completedAt: new Date(),
           });
-          throw error;
+          // Return the failed run instead of throwing
+          return await storage.getWorkflowRun(run.id) as WorkflowRun;
         }
       }
 
@@ -62,8 +63,14 @@ export class WorkflowEngine {
 
       return await storage.getWorkflowRun(run.id) as WorkflowRun;
     } catch (error: any) {
+      // Handle unexpected errors (not step failures)
       console.error("[Workflow] Execution failed:", error);
-      throw error;
+      await storage.updateWorkflowRun(run.id, {
+        status: "failed",
+        error: error.message || "Unexpected error during workflow execution",
+        completedAt: new Date(),
+      });
+      return await storage.getWorkflowRun(run.id) as WorkflowRun;
     }
   }
 
