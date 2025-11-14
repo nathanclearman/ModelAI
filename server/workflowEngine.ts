@@ -31,6 +31,8 @@ export class WorkflowEngine {
       completedAt: null,
     });
 
+    console.log(`[Workflow] Created run with ID: ${run.id}`);
+
     try {
       const steps = (workflow.steps as WorkflowStep[]) || [];
       let context: any = { ...input };
@@ -44,33 +46,36 @@ export class WorkflowEngine {
           context = { ...context, [`step_${i + 1}_result`]: stepResult };
         } catch (error: any) {
           console.error(`[Workflow] Step ${i + 1} failed:`, error.message);
-          await storage.updateWorkflowRun(run.id, {
+          const failed = await storage.updateWorkflowRun(run.id, {
             status: "failed",
             error: `Step ${i + 1} (${step.type}) failed: ${error.message}`,
             output: context,
             completedAt: new Date(),
           });
           // Return the failed run instead of throwing
-          return await storage.getWorkflowRun(run.id) as WorkflowRun;
+          console.log(`[Workflow] Step failed. Returning run:`, failed?.id, failed?.status);
+          return failed || run;
         }
       }
 
-      await storage.updateWorkflowRun(run.id, {
+      const updated = await storage.updateWorkflowRun(run.id, {
         status: "completed",
         output: context,
         completedAt: new Date(),
       });
 
-      return await storage.getWorkflowRun(run.id) as WorkflowRun;
+      console.log(`[Workflow] Workflow completed. Returning run:`, updated?.id, updated?.status);
+      return updated || run;
     } catch (error: any) {
       // Handle unexpected errors (not step failures)
       console.error("[Workflow] Execution failed:", error);
-      await storage.updateWorkflowRun(run.id, {
+      const failed = await storage.updateWorkflowRun(run.id, {
         status: "failed",
         error: error.message || "Unexpected error during workflow execution",
         completedAt: new Date(),
       });
-      return await storage.getWorkflowRun(run.id) as WorkflowRun;
+      console.log(`[Workflow] Unexpected error. Returning run:`, failed?.id, failed?.status);
+      return failed || run;
     }
   }
 
