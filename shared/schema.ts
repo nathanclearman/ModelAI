@@ -392,6 +392,36 @@ export const insertWorkflowRunSchema = createInsertSchema(workflowRuns).omit({
 export type InsertWorkflowRun = z.infer<typeof insertWorkflowRunSchema>;
 export type WorkflowRun = typeof workflowRuns.$inferSelect;
 
+// Webhook configurations for reusable webhook endpoints
+export const webhookConfigurations = pgTable("webhook_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  workspaceId: varchar("workspace_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  url: text("url").notNull(),
+  method: text("method").notNull().default("POST"),
+  headers: jsonb("headers").default({}),
+  bodyTemplate: jsonb("body_template"),
+  authType: text("auth_type"),
+  authConfig: jsonb("auth_config"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_webhook_configs_user").on(table.userId),
+  index("idx_webhook_configs_workspace").on(table.workspaceId),
+]);
+
+export const insertWebhookConfigurationSchema = createInsertSchema(webhookConfigurations).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertWebhookConfiguration = z.infer<typeof insertWebhookConfigurationSchema>;
+export type WebhookConfiguration = typeof webhookConfigurations.$inferSelect;
+
 // Fine-tuning files storage
 export const fineTuningFiles = pgTable("fine_tuning_files", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

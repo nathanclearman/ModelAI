@@ -19,6 +19,7 @@ import {
   workflowRuns,
   fineTuningFiles,
   fineTuningJobs,
+  webhookConfigurations,
   type User,
   type UpsertUser,
   type AIModel,
@@ -49,6 +50,8 @@ import {
   type InsertFineTuningFile,
   type FineTuningJob,
   type InsertFineTuningJob,
+  type WebhookConfiguration,
+  type InsertWebhookConfiguration,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -205,6 +208,13 @@ export interface IStorage {
   getUserFineTuningJobs(userId: string): Promise<FineTuningJob[]>;
   updateFineTuningJob(userId: string, id: string, data: Partial<InsertFineTuningJob>): Promise<FineTuningJob | undefined>;
   cancelFineTuningJob(userId: string, id: string): Promise<FineTuningJob | undefined>;
+  
+  // Webhook configuration methods
+  createWebhookConfiguration(userId: string, webhook: InsertWebhookConfiguration): Promise<WebhookConfiguration>;
+  getWebhookConfiguration(userId: string, id: string): Promise<WebhookConfiguration | undefined>;
+  getUserWebhookConfigurations(userId: string): Promise<WebhookConfiguration[]>;
+  updateWebhookConfiguration(userId: string, id: string, data: Partial<InsertWebhookConfiguration>): Promise<WebhookConfiguration | undefined>;
+  deleteWebhookConfiguration(userId: string, id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1276,6 +1286,48 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(fineTuningJobs.id, id), eq(fineTuningJobs.userId, userId)))
       .returning();
     return result[0];
+  }
+
+  // Webhook configuration methods
+  async createWebhookConfiguration(userId: string, webhook: InsertWebhookConfiguration): Promise<WebhookConfiguration> {
+    const [created] = await db
+      .insert(webhookConfigurations)
+      .values({ ...webhook, userId })
+      .returning();
+    return created;
+  }
+
+  async getWebhookConfiguration(userId: string, id: string): Promise<WebhookConfiguration | undefined> {
+    const result = await db
+      .select()
+      .from(webhookConfigurations)
+      .where(and(eq(webhookConfigurations.id, id), eq(webhookConfigurations.userId, userId)));
+    return result[0];
+  }
+
+  async getUserWebhookConfigurations(userId: string): Promise<WebhookConfiguration[]> {
+    return db
+      .select()
+      .from(webhookConfigurations)
+      .where(eq(webhookConfigurations.userId, userId))
+      .orderBy(desc(webhookConfigurations.createdAt));
+  }
+
+  async updateWebhookConfiguration(userId: string, id: string, data: Partial<InsertWebhookConfiguration>): Promise<WebhookConfiguration | undefined> {
+    const result = await db
+      .update(webhookConfigurations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(webhookConfigurations.id, id), eq(webhookConfigurations.userId, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async deleteWebhookConfiguration(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(webhookConfigurations)
+      .where(and(eq(webhookConfigurations.id, id), eq(webhookConfigurations.userId, userId)))
+      .returning();
+    return result.length > 0;
   }
 }
 
