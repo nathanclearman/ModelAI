@@ -36,6 +36,17 @@ type AIModel = {
   model: string;
 };
 
+type WebhookConfiguration = {
+  id: string;
+  name: string;
+  url: string;
+  method: string;
+  headers: Record<string, string> | null;
+  bodyTemplate: any;
+  authType: string | null;
+  authConfig: any;
+};
+
 export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | null; onClose: () => void }) {
   const { toast } = useToast();
   const [formData, setFormData] = useState<Workflow>({
@@ -51,12 +62,16 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
     queryKey: ["/api/models"],
   });
 
+  const { data: webhooks = [] } = useQuery<WebhookConfiguration[]>({
+    queryKey: ["/api/webhooks"],
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (data: Workflow) => {
       if (workflow?.id) {
-        return await apiRequest("PATCH", `/api/workflows/${workflow.id}`, data);
+        return await apiRequest(`/api/workflows/${workflow.id}`, "PATCH", data);
       } else {
-        return await apiRequest("POST", "/api/workflows", data);
+        return await apiRequest("/api/workflows", "POST", data);
       }
     },
     onSuccess: () => {
@@ -114,7 +129,15 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
       case "delay":
         return { seconds: 5 };
       case "webhook":
-        return { url: "", method: "POST", body: {} };
+        return { 
+          webhookConfigId: "",
+          url: "", 
+          method: "POST", 
+          headers: {},
+          body: {},
+          authType: null,
+          authConfig: null,
+        };
       default:
         return {};
     }
@@ -387,31 +410,154 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
                     {step.type === "webhook" && (
                       <>
                         <div>
-                          <Label>URL</Label>
-                          <Input
-                            value={step.config.url}
-                            onChange={(e) => updateStepConfig(index, { url: e.target.value })}
-                            placeholder="https://api.example.com/webhook"
-                            data-testid={`input-url-${index}`}
-                          />
-                        </div>
-                        <div>
-                          <Label>Method</Label>
+                          <Label>Saved Webhook (Optional)</Label>
                           <Select
-                            value={step.config.method}
-                            onValueChange={(value) => updateStepConfig(index, { method: value })}
+                            value={step.config.webhookConfigId || ""}
+                            onValueChange={(value) => {
+                              if (value === "custom") {
+                                updateStepConfig(index, { 
+                                  webhookConfigId: "",
+                                  url: "",
+                                  method: "POST",
+                                  headers: {},
+                                  body: {},
+                                  authType: null,
+                                  authConfig: null,
+                                });
+                              } else {
+                                const webhook = webhooks.find(w => w.id === value);
+                                if (webhook) {
+                                  // Only store the webhook config ID and basic display info
+                                  // Auth credentials will be fetched at runtime for security
+                                  updateStepConfig(index, { 
+                                    webhookConfigId: webhook.id,
+                                    url: webhook.url,
+                                    method: webhook.method,
+                                    headers: webhook.headers || {},
+                                    body: webhook.bodyTemplate || {},
+                                    authType: webhook.authType,
+                                    // Do NOT store authConfig - will be loaded at runtime
+                                    authConfig: null,
+                                  });
+                                }
+                              }
+                            }}
                           >
-                            <SelectTrigger data-testid={`select-method-${index}`}>
-                              <SelectValue />
+                            <SelectTrigger data-testid={`select-webhook-config-${index}`}>
+                              <SelectValue placeholder="Select saved webhook or custom..." />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="GET">GET</SelectItem>
-                              <SelectItem value="POST">POST</SelectItem>
-                              <SelectItem value="PUT">PUT</SelectItem>
-                              <SelectItem value="PATCH">PATCH</SelectItem>
+                              <SelectItem value="custom">Custom Configuration</SelectItem>
+                              {webhooks.map((webhook) => (
+                                <SelectItem key={webhook.id} value={webhook.id}>
+                                  {webhook.name}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
+                          {webhooks.length === 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              No saved webhooks. Go to Webhooks page to create reusable configurations.
+                            </p>
+                          )}
                         </div>
+
+                        {!step.config.webhookConfigId && (
+                          <>
+                            <div>
+                              <Label>URL</Label>
+                              <Input
+                                value={step.config.url}
+                                onChange={(e) => updateStepConfig(index, { url: e.target.value })}
+                                placeholder="https://api.example.com/webhook"
+                                data-testid={`input-url-${index}`}
+                              />
+                            </div>
+                            <div>
+                              <Label>Method</Label>
+                              <Select
+                                value={step.config.method}
+                                onValueChange={(value) => updateStepConfig(index, { method: value })}
+                              >
+                                <SelectTrigger data-testid={`select-method-${index}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="GET">GET</SelectItem>
+                                  <SelectItem value="POST">POST</SelectItem>
+                                  <SelectItem value="PUT">PUT</SelectItem>
+                                  <SelectItem value="PATCH">PATCH</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label>Headers (JSON)</Label>
+                              <Textarea
+                                value={typeof step.config.headers === 'string' ? step.config.headers : JSON.stringify(step.config.headers || {}, null, 2)}
+                                onChange={(e) => {
+                                  try {
+                                    const parsed = JSON.parse(e.target.value);
+                                    updateStepConfig(index, { headers: parsed });
+                                  } catch {
+                                    updateStepConfig(index, { headers: e.target.value });
+                                  }
+                                }}
+                                placeholder='{"Content-Type": "application/json"}'
+                                className="font-mono text-sm"
+                                rows={3}
+                                data-testid={`input-headers-${index}`}
+                              />
+                            </div>
+                            <div>
+                              <Label>Body Template (JSON)</Label>
+                              <Textarea
+                                value={typeof step.config.body === 'string' ? step.config.body : JSON.stringify(step.config.body || {}, null, 2)}
+                                onChange={(e) => {
+                                  try {
+                                    const parsed = JSON.parse(e.target.value);
+                                    updateStepConfig(index, { body: parsed });
+                                  } catch {
+                                    updateStepConfig(index, { body: e.target.value });
+                                  }
+                                }}
+                                placeholder='{"message": "{{step_1_result.response}}"}'
+                                className="font-mono text-sm"
+                                rows={4}
+                                data-testid={`input-body-${index}`}
+                              />
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Use &#123;&#123;step_X_result&#125;&#125; to reference previous step outputs
+                              </p>
+                            </div>
+                          </>
+                        )}
+
+                        {step.config.webhookConfigId && (
+                          <div className="rounded-lg bg-muted p-4">
+                            <div className="text-sm font-medium mb-2">Configuration Preview</div>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex gap-2">
+                                <span className="text-muted-foreground">Method:</span>
+                                <Badge variant="outline">{step.config.method}</Badge>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">URL:</span>
+                                <code className="ml-2 text-xs bg-background px-2 py-0.5 rounded">
+                                  {step.config.url}
+                                </code>
+                              </div>
+                              {step.config.authType && (
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground">Auth:</span>
+                                  <Badge variant="secondary">{step.config.authType}</Badge>
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Using saved webhook configuration. Variables in body template will be replaced at runtime.
+                            </p>
+                          </div>
+                        )}
                       </>
                     )}
                   </CardContent>

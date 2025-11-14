@@ -33,6 +33,7 @@ The backend is an Express.js application in TypeScript, offering RESTful API end
 - **Admin Dashboard:** Statistics, user management, admin privilege control, conversation viewing/export, and newsletter sending.
 - **Workflow Automation Builder:** Chain AI tasks into automated workflows with a visual editor, variable resolution, and run history.
 - **Fine-Tuning Interface:** Create and monitor OpenAI model fine-tuning jobs, including training file management, job configuration, and real-time monitoring.
+- **Webhook Management System:** Save and reuse webhook configurations for external integrations. Supports custom headers, body templates with variable substitution, authentication (Bearer Token, API Key), and testing before deployment. Integrates seamlessly into workflow automation.
 
 ### System Design Choices
 - **Full-Stack TypeScript:** Type safety across frontend and backend.

@@ -92,7 +92,7 @@ export class WorkflowEngine {
         return await this.executeDelay(step);
       
       case "webhook":
-        return await this.executeWebhook(step, context);
+        return await this.executeWebhook(step, context, userId);
       
       default:
         throw new Error(`Unsupported step type: ${step.type}`);
@@ -199,22 +199,89 @@ export class WorkflowEngine {
     return { delayed: seconds };
   }
 
-  private async executeWebhook(step: WorkflowStep, context: any): Promise<any> {
-    const { url, method = "POST", headers = {}, body } = step.config;
-    const resolvedBody = this.resolveVariables(JSON.stringify(body), context);
+  private async executeWebhook(step: WorkflowStep, context: any, userId?: string): Promise<any> {
+    let { url, method = "POST", headers = {}, body, authType, authConfig, webhookConfigId } = step.config;
+
+    // If using a saved webhook configuration, fetch auth credentials at runtime
+    if (webhookConfigId && userId) {
+      try {
+        const savedWebhook = await storage.getWebhookConfiguration(userId, webhookConfigId);
+        if (savedWebhook) {
+          // Override with saved configuration including auth credentials
+          url = savedWebhook.url;
+          method = savedWebhook.method;
+          headers = savedWebhook.headers as Record<string, string> || {};
+          body = savedWebhook.bodyTemplate;
+          authType = savedWebhook.authType;
+          authConfig = savedWebhook.authConfig;
+        }
+      } catch (error) {
+        console.error("[Workflow] Failed to fetch saved webhook configuration:", error);
+        // Continue with step config as fallback
+      }
+    }
+
+    // SSRF protection: Validate webhook URL
+    try {
+      const urlObj = new URL(url);
+      const hostname = urlObj.hostname.toLowerCase();
+      
+      // Block localhost, private IPs, and internal networks
+      const blockedHosts = [
+        'localhost', '127.0.0.1', '0.0.0.0',
+        '::1', '::ffff:127.0.0.1',
+      ];
+      
+      if (blockedHosts.includes(hostname) || 
+          hostname.startsWith('10.') ||
+          hostname.startsWith('192.168.') ||
+          hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+          hostname.endsWith('.local')) {
+        throw new Error("Cannot execute webhooks pointing to internal networks");
+      }
+    } catch (error: any) {
+      throw new Error(`Invalid webhook URL: ${error.message}`);
+    }
+
+    // Prepare headers with authentication
+    const requestHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...headers,
+    };
+
+    // Add authentication if configured
+    if (authType === "bearer" && authConfig) {
+      const token = (authConfig as any).token;
+      if (token) {
+        requestHeaders["Authorization"] = `Bearer ${token}`;
+      }
+    } else if (authType === "api_key" && authConfig) {
+      const { key, value } = authConfig as any;
+      if (key && value) {
+        requestHeaders[key] = value;
+      }
+    }
+
+    // Resolve variables in body template (safely)
+    let resolvedBody = body;
+    if (typeof body === 'object') {
+      resolvedBody = this.resolveVariables(JSON.stringify(body), context);
+    } else if (typeof body === 'string') {
+      resolvedBody = this.resolveVariables(body, context);
+    }
 
     const response = await fetch(url, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-        ...headers,
-      },
+      headers: requestHeaders,
       body: method !== "GET" ? resolvedBody : undefined,
     });
 
+    // Return sanitized result - DO NOT include auth credentials in response
     return {
       status: response.status,
+      statusText: response.statusText,
       body: await response.text(),
+      // Do not return: authType, authConfig, headers with auth tokens
     };
   }
 
@@ -227,8 +294,29 @@ export class WorkflowEngine {
     if (matches) {
       matches.forEach(match => {
         const variable = match.replace(/\{\{|\}\}/g, "").trim();
+        
+        // Sanitize variable name to prevent prototype pollution
+        if (variable.includes('__proto__') || variable.includes('constructor') || variable.includes('prototype')) {
+          resolved = resolved.replace(match, '');
+          return;
+        }
+        
         const value = this.getNestedValue(context, variable);
-        resolved = resolved.replace(match, String(value || ""));
+        
+        // Convert value to string safely
+        let stringValue = '';
+        if (value !== null && value !== undefined) {
+          // Prevent injection by escaping special characters in JSON context
+          if (typeof value === 'string') {
+            stringValue = value;
+          } else if (typeof value === 'object') {
+            stringValue = JSON.stringify(value);
+          } else {
+            stringValue = String(value);
+          }
+        }
+        
+        resolved = resolved.replace(match, stringValue);
       });
     }
     
@@ -236,7 +324,21 @@ export class WorkflowEngine {
   }
 
   private getNestedValue(obj: any, path: string): any {
-    return path.split(".").reduce((current, key) => current?.[key], obj);
+    // Prevent prototype pollution attacks
+    const keys = path.split(".");
+    let current = obj;
+    
+    for (const key of keys) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        return undefined;
+      }
+      if (current === null || current === undefined) {
+        return undefined;
+      }
+      current = current[key];
+    }
+    
+    return current;
   }
 }
 

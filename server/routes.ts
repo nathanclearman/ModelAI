@@ -2242,7 +2242,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id;
       const webhooks = await storage.getUserWebhookConfigurations(userId);
-      res.json(webhooks);
+      
+      // Sanitize sensitive data before sending to frontend
+      const sanitized = webhooks.map((webhook: any) => ({
+        ...webhook,
+        authConfig: webhook.authType ? { configured: true } : null,
+      }));
+      
+      res.json(sanitized);
     } catch (error) {
       console.error("Error fetching webhook configurations:", error);
       res.status(500).json({ error: "Failed to fetch webhook configurations" });
@@ -2258,7 +2265,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Webhook configuration not found" });
       }
 
-      res.json(webhook);
+      // Sanitize sensitive data
+      const sanitized = {
+        ...webhook,
+        authConfig: webhook.authType ? { configured: true } : null,
+      };
+
+      res.json(sanitized);
     } catch (error) {
       console.error("Error fetching webhook configuration:", error);
       res.status(500).json({ error: "Failed to fetch webhook configuration" });
@@ -2306,6 +2319,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!webhook) {
         return res.status(404).json({ error: "Webhook configuration not found" });
+      }
+
+      // Validate webhook URL is not pointing to internal/private networks (SSRF protection)
+      try {
+        const url = new URL(webhook.url);
+        const hostname = url.hostname.toLowerCase();
+        
+        // Block localhost, private IPs, and internal networks
+        const blockedHosts = [
+          'localhost', '127.0.0.1', '0.0.0.0',
+          '::1', '::ffff:127.0.0.1',
+        ];
+        
+        if (blockedHosts.includes(hostname) || 
+            hostname.startsWith('10.') ||
+            hostname.startsWith('192.168.') ||
+            hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+            hostname.endsWith('.local')) {
+          return res.status(400).json({ error: "Cannot test webhooks pointing to internal networks" });
+        }
+      } catch (urlError) {
+        return res.status(400).json({ error: "Invalid webhook URL" });
       }
 
       const { testData } = req.body;
