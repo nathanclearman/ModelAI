@@ -85,7 +85,7 @@ export class WorkflowEngine {
         return await this.executeAIChat(step, context, userId);
       
       case "ai_image_generation":
-        return await this.executeImageGeneration(step, context);
+        return await this.executeImageGeneration(step, context, userId);
       
       case "delay":
         return await this.executeDelay(step);
@@ -142,17 +142,30 @@ export class WorkflowEngine {
     };
   }
 
-  private async executeImageGeneration(step: WorkflowStep, context: any): Promise<any> {
+  private async executeImageGeneration(step: WorkflowStep, context: any, userId: string): Promise<any> {
     const { prompt } = step.config;
     const resolvedPrompt = this.resolveVariables(prompt, context);
 
-    const { imageData } = await geminiService.generateImage(resolvedPrompt);
-    
-    return {
-      prompt: resolvedPrompt,
-      imageGenerated: true,
-      size: imageData.length,
-    };
+    try {
+      const { imageData } = await geminiService.generateImage(resolvedPrompt);
+      
+      // Save the generated image to storage with error handling
+      const imageResult = await imageStore.store(imageData, userId, "generated", resolvedPrompt);
+      
+      return {
+        prompt: resolvedPrompt,
+        imageGenerated: true,
+        imageUrl: imageResult.publicUrl,
+        size: imageData.length,
+      };
+    } catch (error: any) {
+      console.error("[Workflow] Image generation failed:", error);
+      return {
+        prompt: resolvedPrompt,
+        imageGenerated: false,
+        error: error.message || "Failed to generate or store image",
+      };
+    }
   }
 
   private async executeDelay(step: WorkflowStep): Promise<any> {

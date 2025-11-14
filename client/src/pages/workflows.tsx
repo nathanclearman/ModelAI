@@ -392,12 +392,87 @@ export default function WorkflowsPage() {
                               Output & Results
                             </AccordionTrigger>
                             <AccordionContent>
-                              <pre 
-                                className="bg-muted p-3 rounded-md text-xs overflow-auto max-h-64"
-                                data-testid={`text-output-${run.id}`}
-                              >
-                                {JSON.stringify(run.output, null, 2)}
-                              </pre>
+                              <div className="space-y-4" data-testid={`text-output-${run.id}`}>
+                                {Object.entries(run.output).map(([key, value]: [string, any]) => (
+                                  <div key={key} className="space-y-2">
+                                    <h4 className="text-sm font-semibold text-muted-foreground capitalize">
+                                      {key.replace(/_/g, ' ')}
+                                    </h4>
+                                    
+                                    {/* Display AI Chat Response */}
+                                    {value?.response && typeof value.response === 'string' && (
+                                      <div className="bg-muted p-4 rounded-lg">
+                                        <p className="text-sm whitespace-pre-wrap">{value.response}</p>
+                                        {value.tokens && (
+                                          <p className="text-xs text-muted-foreground mt-2">
+                                            Tokens used: {value.tokens}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Display Generated Image */}
+                                    {value?.imageGenerated && value?.imageUrl && (
+                                      <div className="space-y-2">
+                                        <img 
+                                          src={value.imageUrl} 
+                                          alt={value.prompt || 'Generated image'}
+                                          className="max-w-full h-auto rounded-lg border"
+                                          data-testid={`img-generated-${run.id}`}
+                                        />
+                                        {value.prompt && (
+                                          <p className="text-xs text-muted-foreground">
+                                            Prompt: {value.prompt}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Display Image Generation Error */}
+                                    {value?.imageGenerated === false && value?.error && (
+                                      <div className="bg-destructive/10 p-3 rounded-lg">
+                                        <p className="text-sm text-destructive">
+                                          Image generation failed: {value.error}
+                                        </p>
+                                        {value.prompt && (
+                                          <p className="text-xs text-muted-foreground mt-1">
+                                            Prompt: {value.prompt}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Display Delay */}
+                                    {value?.delayed !== undefined && (
+                                      <p className="text-sm text-muted-foreground">
+                                        Delayed for {value.delayed} seconds
+                                      </p>
+                                    )}
+                                    
+                                    {/* Display Webhook Response */}
+                                    {value?.status !== undefined && value?.body && (
+                                      <div className="bg-muted p-3 rounded-lg">
+                                        <p className="text-xs text-muted-foreground mb-1">
+                                          Status: {value.status}
+                                        </p>
+                                        <pre className="text-xs overflow-auto">
+                                          {value.body}
+                                        </pre>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Fallback: Show raw JSON for unknown formats */}
+                                    {!value?.response && 
+                                     value?.imageGenerated === undefined && 
+                                     value?.delayed === undefined && 
+                                     value?.status === undefined && (
+                                      <pre className="bg-muted p-3 rounded-md text-xs overflow-auto">
+                                        {JSON.stringify(value, null, 2)}
+                                      </pre>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             </AccordionContent>
                           </AccordionItem>
                         )}
