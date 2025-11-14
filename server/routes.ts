@@ -2225,6 +2225,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Webhook configuration endpoints
+  app.post("/api/webhooks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const validated = insertWebhookConfigurationSchema.parse(req.body);
+      const webhook = await storage.createWebhookConfiguration(userId, validated);
+      res.json(webhook);
+    } catch (error: any) {
+      console.error("Error creating webhook configuration:", error);
+      res.status(500).json({ error: error.message || "Failed to create webhook configuration" });
+    }
+  });
+
+  app.get("/api/webhooks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const webhooks = await storage.getUserWebhookConfigurations(userId);
+      res.json(webhooks);
+    } catch (error) {
+      console.error("Error fetching webhook configurations:", error);
+      res.status(500).json({ error: "Failed to fetch webhook configurations" });
+    }
+  });
+
+  app.get("/api/webhooks/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const webhook = await storage.getWebhookConfiguration(userId, req.params.id);
+      
+      if (!webhook) {
+        return res.status(404).json({ error: "Webhook configuration not found" });
+      }
+
+      res.json(webhook);
+    } catch (error) {
+      console.error("Error fetching webhook configuration:", error);
+      res.status(500).json({ error: "Failed to fetch webhook configuration" });
+    }
+  });
+
+  app.patch("/api/webhooks/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const validated = insertWebhookConfigurationSchema.partial().parse(req.body);
+      const webhook = await storage.updateWebhookConfiguration(userId, req.params.id, validated);
+      
+      if (!webhook) {
+        return res.status(404).json({ error: "Webhook configuration not found" });
+      }
+
+      res.json(webhook);
+    } catch (error: any) {
+      console.error("Error updating webhook configuration:", error);
+      res.status(500).json({ error: error.message || "Failed to update webhook configuration" });
+    }
+  });
+
+  app.delete("/api/webhooks/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const deleted = await storage.deleteWebhookConfiguration(userId, req.params.id);
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Webhook configuration not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting webhook configuration:", error);
+      res.status(500).json({ error: "Failed to delete webhook configuration" });
+    }
+  });
+
+  // Test webhook endpoint
+  app.post("/api/webhooks/:id/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const webhook = await storage.getWebhookConfiguration(userId, req.params.id);
+      
+      if (!webhook) {
+        return res.status(404).json({ error: "Webhook configuration not found" });
+      }
+
+      const { testData } = req.body;
+
+      // Prepare headers
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(webhook.headers as Record<string, string> || {}),
+      };
+
+      // Add authentication if configured
+      if (webhook.authType === "bearer" && webhook.authConfig) {
+        const authConfig = webhook.authConfig as { token?: string };
+        if (authConfig.token) {
+          headers["Authorization"] = `Bearer ${authConfig.token}`;
+        }
+      } else if (webhook.authType === "api_key" && webhook.authConfig) {
+        const authConfig = webhook.authConfig as { key?: string; value?: string };
+        if (authConfig.key && authConfig.value) {
+          headers[authConfig.key] = authConfig.value;
+        }
+      }
+
+      // Prepare body
+      let body = testData || webhook.bodyTemplate;
+
+      const response = await fetch(webhook.url, {
+        method: webhook.method,
+        headers,
+        body: webhook.method !== "GET" ? JSON.stringify(body) : undefined,
+      });
+
+      const responseText = await response.text();
+      let responseBody;
+      try {
+        responseBody = JSON.parse(responseText);
+      } catch {
+        responseBody = responseText;
+      }
+
+      res.json({
+        success: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: responseBody,
+      });
+    } catch (error: any) {
+      console.error("Error testing webhook:", error);
+      res.status(500).json({ error: error.message || "Failed to test webhook" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
