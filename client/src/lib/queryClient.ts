@@ -29,7 +29,18 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    // Filter out null/undefined values and ensure all parts are strings
+    const validParts = queryKey.filter(part => part != null && part !== "") as string[];
+    if (validParts.length === 0) {
+      throw new Error("Invalid query key: empty or all null values");
+    }
+    
+    const url = validParts.join("/");
+    if (!url.startsWith("/")) {
+      throw new Error(`Invalid query key: URL must start with "/", got: ${url}`);
+    }
+    
+    const res = await fetch(url, {
       credentials: "include",
       headers: {
         "Cache-Control": "no-cache"

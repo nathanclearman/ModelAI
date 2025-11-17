@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import fs from "fs/promises";
+import path from "path";
 import { storage } from "./storage";
 import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, insertWorkspaceSchema, insertWorkspaceMemberSchema, insertApiKeySchema, insertWebhookConfigurationSchema, insertIntegrationSchema, workspaceRoles, type Message } from "@shared/schema";
 import OpenAI from "openai";
@@ -16,6 +18,7 @@ import { storeDocument, deleteDocument as deleteDocumentFile } from "./services/
 import { mediaStore } from "./services/mediaStore";
 import { transcribeAudio, textToSpeech } from "./services/audioService";
 import { analyzeVideo } from "./services/videoService";
+import { processConversationForKnowledge, getRelevantKnowledgeForQuery, formatKnowledgeAsContext } from "./services/knowledgeGraphService";
 import multer from "multer";
 import Stripe from "stripe";
 import bcrypt from "bcryptjs";
@@ -28,6 +31,95 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Test endpoint to verify proxy is accessible
+  app.get("/api/images/proxy/test", (req, res) => {
+    console.log("[ImageProxy] Test endpoint hit!");
+    res.json({ status: "ok", message: "Image proxy endpoint is accessible" });
+  });
+
+  // Image proxy endpoint - MUST be registered early, before auth middleware
+  // This endpoint must be public (no auth) to allow images to load in browsers
+  app.get("/api/images/proxy", async (req, res) => {
+    // Log immediately when endpoint is hit
+    console.log("[ImageProxy] ===== ENDPOINT HIT =====");
+    console.log("[ImageProxy] Request received:", {
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      url: req.url,
+      headers: {
+        'user-agent': req.headers['user-agent'],
+        'referer': req.headers['referer'],
+      },
+    });
+    
+    try {
+      const { key } = req.query;
+      
+      if (!key || typeof key !== "string") {
+        console.error("[ImageProxy] Missing or invalid key parameter:", key);
+        return res.status(400).send("Image key is required");
+      }
+
+      // Decode the URL-encoded key
+      let decodedKey: string;
+      try {
+        decodedKey = decodeURIComponent(key);
+      } catch (e) {
+        console.error("[ImageProxy] Failed to decode key:", key, e);
+        decodedKey = key; // Fallback to original key
+      }
+      
+      console.log("[ImageProxy] Processing request:", {
+        originalKey: key,
+        decodedKey,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Check if imageStore has a get method
+      if (typeof imageStore.get !== "function") {
+        console.error("[ImageProxy] Image store does not support retrieval");
+        return res.status(500).send("Image retrieval not supported");
+      }
+
+      // Get image from storage
+      const { buffer, contentType } = await imageStore.get(decodedKey);
+      
+      console.log("[ImageProxy] Successfully retrieved image:", {
+        key: decodedKey,
+        size: buffer.length,
+        contentType,
+      });
+
+      // Set appropriate headers for image
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      res.setHeader("Content-Length", buffer.length.toString());
+      res.setHeader("Access-Control-Allow-Origin", "*"); // Allow CORS for images
+
+      // Send image buffer
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("[ImageProxy] Error serving image:", {
+        error: error.message,
+        code: error.code || error.Code,
+        name: error.name,
+        query: req.query,
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      });
+      
+      // Return a 1x1 transparent PNG instead of JSON error
+      // This prevents broken image icons in the browser
+      const transparentPng = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "base64"
+      );
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "no-cache");
+      res.status(404).send(transparentPng);
+    }
+  });
+
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -795,6 +887,199 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting conversation:", error);
       res.status(500).json({ error: "Failed to delete conversation" });
+    }
+  });
+
+  // Knowledge Graph - Process conversation for knowledge extraction
+  app.post("/api/knowledge/process-conversation/:conversationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { conversationId } = req.params;
+      const { workspaceId } = req.body;
+
+      const conversation = await storage.getConversation(userId, conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      const messages = (conversation.messages as Message[]) || [];
+      const result = await processConversationForKnowledge(
+        userId,
+        conversationId,
+        messages,
+        workspaceId
+      );
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error processing conversation for knowledge:", error);
+      res.status(500).json({ error: error.message || "Failed to process conversation" });
+    }
+  });
+
+  // Knowledge Graph - Get relevant knowledge for query
+  app.get("/api/knowledge/search", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { q, limit = 10 } = req.query;
+
+      if (!q || typeof q !== "string") {
+        return res.status(400).json({ error: "Query parameter 'q' is required" });
+      }
+
+      const knowledge = await getRelevantKnowledgeForQuery(userId, q, parseInt(limit as string));
+      res.json(knowledge);
+    } catch (error: any) {
+      console.error("Error searching knowledge:", error);
+      res.status(500).json({ error: error.message || "Failed to search knowledge" });
+    }
+  });
+
+  // Knowledge Graph - Get knowledge context for prompt
+  app.get("/api/knowledge/context", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { q, limit = 10 } = req.query;
+
+      if (!q || typeof q !== "string") {
+        return res.status(400).json({ error: "Query parameter 'q' is required" });
+      }
+
+      const knowledge = await getRelevantKnowledgeForQuery(userId, q, parseInt(limit as string));
+      const context = formatKnowledgeAsContext(knowledge);
+      res.json({ context, knowledge });
+    } catch (error: any) {
+      console.error("Error getting knowledge context:", error);
+      res.status(500).json({ error: error.message || "Failed to get knowledge context" });
+    }
+  });
+
+  // Knowledge Graph - Get all entities
+  app.get("/api/knowledge/entities", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { workspaceId, type } = req.query;
+
+      const entities = await storage.getKnowledgeEntities(
+        userId,
+        workspaceId as string | undefined,
+        type as string | undefined
+      );
+      res.json(entities);
+    } catch (error: any) {
+      console.error("Error fetching entities:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch entities" });
+    }
+  });
+
+  // Knowledge Graph - Get entity by ID
+  app.get("/api/knowledge/entities/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const entity = await storage.getKnowledgeEntity(userId, req.params.id);
+      if (!entity) {
+        return res.status(404).json({ error: "Entity not found" });
+      }
+      res.json(entity);
+    } catch (error: any) {
+      console.error("Error fetching entity:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch entity" });
+    }
+  });
+
+  // Knowledge Graph - Update entity
+  app.patch("/api/knowledge/entities/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const entity = await storage.updateKnowledgeEntity(userId, req.params.id, req.body);
+      if (!entity) {
+        return res.status(404).json({ error: "Entity not found" });
+      }
+      res.json(entity);
+    } catch (error: any) {
+      console.error("Error updating entity:", error);
+      res.status(500).json({ error: error.message || "Failed to update entity" });
+    }
+  });
+
+  // Knowledge Graph - Delete entity
+  app.delete("/api/knowledge/entities/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const success = await storage.deleteKnowledgeEntity(userId, req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Entity not found" });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting entity:", error);
+      res.status(500).json({ error: error.message || "Failed to delete entity" });
+    }
+  });
+
+  // Knowledge Graph - Get relationships
+  app.get("/api/knowledge/relationships", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { entityId, type } = req.query;
+
+      const relationships = await storage.getKnowledgeRelationships(
+        userId,
+        entityId as string | undefined,
+        type as string | undefined
+      );
+      res.json(relationships);
+    } catch (error: any) {
+      console.error("Error fetching relationships:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch relationships" });
+    }
+  });
+
+  // Knowledge Graph - Get facts
+  app.get("/api/knowledge/facts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { entityId, factType } = req.query;
+
+      const facts = await storage.getKnowledgeFacts(
+        userId,
+        entityId as string | undefined,
+        factType as string | undefined
+      );
+      res.json(facts);
+    } catch (error: any) {
+      console.error("Error fetching facts:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch facts" });
+    }
+  });
+
+  // Knowledge Graph - Update fact
+  app.patch("/api/knowledge/facts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const fact = await storage.updateKnowledgeFact(userId, req.params.id, req.body);
+      if (!fact) {
+        return res.status(404).json({ error: "Fact not found" });
+      }
+      res.json(fact);
+    } catch (error: any) {
+      console.error("Error updating fact:", error);
+      res.status(500).json({ error: error.message || "Failed to update fact" });
+    }
+  });
+
+  // Knowledge Graph - Delete fact
+  app.delete("/api/knowledge/facts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const success = await storage.deleteKnowledgeFact(userId, req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Fact not found" });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting fact:", error);
+      res.status(500).json({ error: error.message || "Failed to delete fact" });
     }
   });
 
@@ -1983,6 +2268,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.id;
       const { workflowEngine } = await import("./workflowEngine");
       const run = await workflowEngine.executeWorkflow(req.params.id, userId, req.body.input);
+      
+      // If workflow failed, include error details in response
+      if (run.status === "failed") {
+        return res.status(200).json({
+          ...run,
+          error: run.error || "Workflow execution failed",
+        });
+      }
+      
       res.json(run);
     } catch (error: any) {
       console.error("Error executing workflow:", error);
@@ -3722,10 +4016,9 @@ ${code}
       const contentTypeMap: Record<string, string> = {
         ".mp3": "audio/mpeg",
         ".wav": "audio/wav",
-        ".webm": "audio/webm",
+        ".webm": "video/webm", // webm can be audio or video, defaulting to video
         ".ogg": "audio/ogg",
         ".mp4": "video/mp4",
-        ".webm": "video/webm",
         ".mov": "video/quicktime",
       };
       

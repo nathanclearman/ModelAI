@@ -652,6 +652,140 @@ export const insertFineTuningJobSchema = createInsertSchema(fineTuningJobs).omit
 export type InsertFineTuningJob = z.infer<typeof insertFineTuningJobSchema>;
 export type FineTuningJob = typeof fineTuningJobs.$inferSelect;
 
+// Knowledge Graph - Entities (people, places, concepts, etc.)
+export const knowledgeEntities = pgTable("knowledge_entities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  workspaceId: varchar("workspace_id"), // Optional: shared within workspace
+  name: text("name").notNull(),
+  type: text("type").notNull(), // e.g., "person", "organization", "concept", "location", "event", "product"
+  description: text("description"),
+  metadata: jsonb("metadata").default({}), // Additional structured data
+  confidence: integer("confidence").notNull().default(100), // 0-100, how confident we are in this entity
+  sourceCount: integer("source_count").notNull().default(1), // Number of sources that mention this entity
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_knowledge_entities_user").on(table.userId),
+  index("idx_knowledge_entities_workspace").on(table.workspaceId),
+  index("idx_knowledge_entities_type").on(table.type),
+  index("idx_knowledge_entities_name").on(table.name),
+]);
+
+export type KnowledgeEntity = typeof knowledgeEntities.$inferSelect;
+export type InsertKnowledgeEntity = typeof knowledgeEntities.$inferInsert;
+
+// Knowledge Graph - Relationships (connections between entities)
+export const knowledgeRelationships = pgTable("knowledge_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  workspaceId: varchar("workspace_id"),
+  sourceEntityId: varchar("source_entity_id").notNull(), // Entity that the relationship originates from
+  targetEntityId: varchar("target_entity_id").notNull(), // Entity that the relationship points to
+  relationshipType: text("relationship_type").notNull(), // e.g., "works_at", "located_in", "related_to", "created_by"
+  description: text("description"), // Optional description of the relationship
+  strength: integer("strength").notNull().default(50), // 0-100, strength of the relationship
+  sourceCount: integer("source_count").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_knowledge_relationships_user").on(table.userId),
+  index("idx_knowledge_relationships_source").on(table.sourceEntityId),
+  index("idx_knowledge_relationships_target").on(table.targetEntityId),
+  index("idx_knowledge_relationships_type").on(table.relationshipType),
+]);
+
+export type KnowledgeRelationship = typeof knowledgeRelationships.$inferSelect;
+export type InsertKnowledgeRelationship = typeof knowledgeRelationships.$inferInsert;
+
+// Knowledge Graph - Facts (specific pieces of information)
+export const knowledgeFacts = pgTable("knowledge_facts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  workspaceId: varchar("workspace_id"),
+  entityId: varchar("entity_id"), // Optional: fact about a specific entity
+  factType: text("fact_type").notNull(), // e.g., "preference", "skill", "contact_info", "attribute"
+  subject: text("subject").notNull(), // What the fact is about
+  predicate: text("predicate").notNull(), // The relationship/attribute
+  object: text("object").notNull(), // The value/object of the fact
+  metadata: jsonb("metadata").default({}), // Additional context
+  confidence: integer("confidence").notNull().default(100),
+  sourceCount: integer("source_count").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_knowledge_facts_user").on(table.userId),
+  index("idx_knowledge_facts_entity").on(table.entityId),
+  index("idx_knowledge_facts_type").on(table.factType),
+  index("idx_knowledge_facts_subject").on(table.subject),
+]);
+
+export type KnowledgeFact = typeof knowledgeFacts.$inferSelect;
+export type InsertKnowledgeFact = typeof knowledgeFacts.$inferInsert;
+
+// Knowledge Graph - Memory Sources (where knowledge came from)
+export const memorySources = pgTable("memory_sources", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  sourceType: text("source_type").notNull(), // "conversation", "document", "manual", "import"
+  sourceId: varchar("source_id"), // ID of the source (conversation ID, document ID, etc.)
+  sourceUrl: text("source_url"), // Optional URL or reference
+  extractedAt: timestamp("extracted_at").defaultNow(),
+  extractionMethod: text("extraction_method"), // "ai_extraction", "manual", "import"
+  metadata: jsonb("metadata").default({}),
+}, (table) => [
+  index("idx_memory_sources_user").on(table.userId),
+  index("idx_memory_sources_type").on(table.sourceType),
+  index("idx_memory_sources_id").on(table.sourceId),
+]);
+
+export type MemorySource = typeof memorySources.$inferSelect;
+export type InsertMemorySource = typeof memorySources.$inferInsert;
+
+// Knowledge Graph - Memory Links (links knowledge to sources)
+export const memoryLinks = pgTable("memory_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceId: varchar("source_id").notNull(), // Memory source
+  entityId: varchar("entity_id"), // Optional: link to entity
+  relationshipId: varchar("relationship_id"), // Optional: link to relationship
+  factId: varchar("fact_id"), // Optional: link to fact
+  extractedText: text("extracted_text"), // The text that was extracted
+  context: text("context"), // Surrounding context
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_memory_links_source").on(table.sourceId),
+  index("idx_memory_links_entity").on(table.entityId),
+  index("idx_memory_links_relationship").on(table.relationshipId),
+  index("idx_memory_links_fact").on(table.factId),
+]);
+
+export type MemoryLink = typeof memoryLinks.$inferSelect;
+export type InsertMemoryLink = typeof memoryLinks.$inferInsert;
+
+// Knowledge Graph - Memory Versions (for versioning and audit trail)
+export const memoryVersions = pgTable("memory_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  entityId: varchar("entity_id"), // Optional: version of entity
+  relationshipId: varchar("relationship_id"), // Optional: version of relationship
+  factId: varchar("fact_id"), // Optional: version of fact
+  version: integer("version").notNull().default(1),
+  previousVersionId: varchar("previous_version_id"), // Link to previous version
+  changeType: text("change_type").notNull(), // "created", "updated", "deleted", "merged"
+  changedBy: varchar("changed_by").notNull(), // User ID or "system"
+  changeReason: text("change_reason"), // Why the change was made
+  data: jsonb("data").notNull(), // Snapshot of the data at this version
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_memory_versions_user").on(table.userId),
+  index("idx_memory_versions_entity").on(table.entityId),
+  index("idx_memory_versions_relationship").on(table.relationshipId),
+  index("idx_memory_versions_fact").on(table.factId),
+]);
+
+export type MemoryVersion = typeof memoryVersions.$inferSelect;
+export type InsertMemoryVersion = typeof memoryVersions.$inferInsert;
+
 // Subscription plan configuration (server-side only, not stored in DB)
 export const subscriptionPlans = {
   free: {

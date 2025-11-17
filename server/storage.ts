@@ -69,6 +69,24 @@ import {
   mediaAssets,
   type MediaAsset,
   type InsertMediaAsset,
+  knowledgeEntities,
+  type KnowledgeEntity,
+  type InsertKnowledgeEntity,
+  knowledgeRelationships,
+  type KnowledgeRelationship,
+  type InsertKnowledgeRelationship,
+  knowledgeFacts,
+  type KnowledgeFact,
+  type InsertKnowledgeFact,
+  memorySources,
+  type MemorySource,
+  type InsertMemorySource,
+  memoryLinks,
+  type MemoryLink,
+  type InsertMemoryLink,
+  memoryVersions,
+  type MemoryVersion,
+  type InsertMemoryVersion,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -1755,6 +1773,315 @@ export class DatabaseStorage implements IStorage {
       .where(eq(mediaAssets.id, id))
       .returning();
     return result.length > 0;
+  }
+
+  // Knowledge Graph - Entity methods
+  async createKnowledgeEntity(entity: InsertKnowledgeEntity): Promise<KnowledgeEntity> {
+    const [created] = await db
+      .insert(knowledgeEntities)
+      .values(entity)
+      .returning();
+    return created;
+  }
+
+  async getKnowledgeEntity(userId: string, id: string): Promise<KnowledgeEntity | undefined> {
+    const result = await db
+      .select()
+      .from(knowledgeEntities)
+      .where(and(eq(knowledgeEntities.id, id), eq(knowledgeEntities.userId, userId)));
+    return result[0];
+  }
+
+  async getKnowledgeEntities(
+    userId: string,
+    workspaceId?: string,
+    type?: string
+  ): Promise<KnowledgeEntity[]> {
+    const conditions = [eq(knowledgeEntities.userId, userId)];
+    if (workspaceId) {
+      conditions.push(eq(knowledgeEntities.workspaceId, workspaceId));
+    }
+    if (type) {
+      conditions.push(eq(knowledgeEntities.type, type));
+    }
+    return db
+      .select()
+      .from(knowledgeEntities)
+      .where(and(...conditions))
+      .orderBy(desc(knowledgeEntities.updatedAt));
+  }
+
+  async searchKnowledgeEntities(
+    userId: string,
+    query: string,
+    limit = 20
+  ): Promise<KnowledgeEntity[]> {
+    return db
+      .select()
+      .from(knowledgeEntities)
+      .where(
+        and(
+          eq(knowledgeEntities.userId, userId),
+          sql`${knowledgeEntities.name} ILIKE ${`%${query}%`} OR ${knowledgeEntities.description} ILIKE ${`%${query}%`}`
+        )
+      )
+      .limit(limit)
+      .orderBy(desc(knowledgeEntities.sourceCount));
+  }
+
+  async updateKnowledgeEntity(
+    userId: string,
+    id: string,
+    updates: Partial<InsertKnowledgeEntity>
+  ): Promise<KnowledgeEntity | undefined> {
+    const [updated] = await db
+      .update(knowledgeEntities)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(knowledgeEntities.id, id), eq(knowledgeEntities.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async incrementEntitySourceCount(id: string): Promise<void> {
+    await db
+      .update(knowledgeEntities)
+      .set({
+        sourceCount: sql`${knowledgeEntities.sourceCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeEntities.id, id));
+  }
+
+  async deleteKnowledgeEntity(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(knowledgeEntities)
+      .where(and(eq(knowledgeEntities.id, id), eq(knowledgeEntities.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Knowledge Graph - Relationship methods
+  async createKnowledgeRelationship(
+    relationship: InsertKnowledgeRelationship
+  ): Promise<KnowledgeRelationship> {
+    const [created] = await db
+      .insert(knowledgeRelationships)
+      .values(relationship)
+      .returning();
+    return created;
+  }
+
+  async getKnowledgeRelationships(
+    userId: string,
+    entityId?: string,
+    relationshipType?: string
+  ): Promise<KnowledgeRelationship[]> {
+    const conditions = [eq(knowledgeRelationships.userId, userId)];
+    if (entityId) {
+      conditions.push(
+        sql`${knowledgeRelationships.sourceEntityId} = ${entityId} OR ${knowledgeRelationships.targetEntityId} = ${entityId}`
+      );
+    }
+    if (relationshipType) {
+      conditions.push(eq(knowledgeRelationships.relationshipType, relationshipType));
+    }
+    return db
+      .select()
+      .from(knowledgeRelationships)
+      .where(and(...conditions))
+      .orderBy(desc(knowledgeRelationships.updatedAt));
+  }
+
+  async updateKnowledgeRelationship(
+    userId: string,
+    id: string,
+    updates: Partial<InsertKnowledgeRelationship>
+  ): Promise<KnowledgeRelationship | undefined> {
+    const [updated] = await db
+      .update(knowledgeRelationships)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(knowledgeRelationships.id, id), eq(knowledgeRelationships.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteKnowledgeRelationship(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(knowledgeRelationships)
+      .where(and(eq(knowledgeRelationships.id, id), eq(knowledgeRelationships.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Knowledge Graph - Fact methods
+  async createKnowledgeFact(fact: InsertKnowledgeFact): Promise<KnowledgeFact> {
+    const [created] = await db
+      .insert(knowledgeFacts)
+      .values(fact)
+      .returning();
+    return created;
+  }
+
+  async getKnowledgeFacts(
+    userId: string,
+    entityId?: string,
+    factType?: string
+  ): Promise<KnowledgeFact[]> {
+    const conditions = [eq(knowledgeFacts.userId, userId)];
+    if (entityId) {
+      conditions.push(eq(knowledgeFacts.entityId, entityId));
+    }
+    if (factType) {
+      conditions.push(eq(knowledgeFacts.factType, factType));
+    }
+    return db
+      .select()
+      .from(knowledgeFacts)
+      .where(and(...conditions))
+      .orderBy(desc(knowledgeFacts.updatedAt));
+  }
+
+  async searchKnowledgeFacts(
+    userId: string,
+    query: string,
+    limit = 20
+  ): Promise<KnowledgeFact[]> {
+    return db
+      .select()
+      .from(knowledgeFacts)
+      .where(
+        and(
+          eq(knowledgeFacts.userId, userId),
+          sql`${knowledgeFacts.subject} ILIKE ${`%${query}%`} OR ${knowledgeFacts.predicate} ILIKE ${`%${query}%`} OR ${knowledgeFacts.object} ILIKE ${`%${query}%`}`
+        )
+      )
+      .limit(limit)
+      .orderBy(desc(knowledgeFacts.sourceCount));
+  }
+
+  async updateKnowledgeFact(
+    userId: string,
+    id: string,
+    updates: Partial<InsertKnowledgeFact>
+  ): Promise<KnowledgeFact | undefined> {
+    const [updated] = await db
+      .update(knowledgeFacts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(knowledgeFacts.id, id), eq(knowledgeFacts.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteKnowledgeFact(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(knowledgeFacts)
+      .where(and(eq(knowledgeFacts.id, id), eq(knowledgeFacts.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Memory Source methods
+  async createMemorySource(source: InsertMemorySource): Promise<MemorySource> {
+    const [created] = await db
+      .insert(memorySources)
+      .values(source)
+      .returning();
+    return created;
+  }
+
+  async getMemorySources(
+    userId: string,
+    sourceType?: string
+  ): Promise<MemorySource[]> {
+    const conditions = [eq(memorySources.userId, userId)];
+    if (sourceType) {
+      conditions.push(eq(memorySources.sourceType, sourceType));
+    }
+    return db
+      .select()
+      .from(memorySources)
+      .where(and(...conditions))
+      .orderBy(desc(memorySources.extractedAt));
+  }
+
+  // Memory Link methods
+  async createMemoryLink(link: InsertMemoryLink): Promise<MemoryLink> {
+    const [created] = await db
+      .insert(memoryLinks)
+      .values(link)
+      .returning();
+    return created;
+  }
+
+  async getMemoryLinks(sourceId: string): Promise<MemoryLink[]> {
+    return db
+      .select()
+      .from(memoryLinks)
+      .where(eq(memoryLinks.sourceId, sourceId))
+      .orderBy(desc(memoryLinks.createdAt));
+  }
+
+  // Memory Version methods
+  async createMemoryVersion(version: InsertMemoryVersion): Promise<MemoryVersion> {
+    const [created] = await db
+      .insert(memoryVersions)
+      .values(version)
+      .returning();
+    return created;
+  }
+
+  async getMemoryVersions(
+    userId: string,
+    entityId?: string,
+    relationshipId?: string,
+    factId?: string
+  ): Promise<MemoryVersion[]> {
+    const conditions = [eq(memoryVersions.userId, userId)];
+    if (entityId) {
+      conditions.push(eq(memoryVersions.entityId, entityId));
+    }
+    if (relationshipId) {
+      conditions.push(eq(memoryVersions.relationshipId, relationshipId));
+    }
+    if (factId) {
+      conditions.push(eq(memoryVersions.factId, factId));
+    }
+    return db
+      .select()
+      .from(memoryVersions)
+      .where(and(...conditions))
+      .orderBy(desc(memoryVersions.createdAt));
+  }
+
+  // Get relevant knowledge for a query (for memory retrieval)
+  async getRelevantKnowledge(
+    userId: string,
+    query: string,
+    limit = 10
+  ): Promise<{
+    entities: KnowledgeEntity[];
+    relationships: KnowledgeRelationship[];
+    facts: KnowledgeFact[];
+  }> {
+    const entities = await this.searchKnowledgeEntities(userId, query, limit);
+    const facts = await this.searchKnowledgeFacts(userId, query, limit);
+    
+    // Get relationships for found entities
+    const entityIds = entities.map((e) => e.id);
+    const relationships = entityIds.length > 0
+      ? await db
+          .select()
+          .from(knowledgeRelationships)
+          .where(
+            and(
+              eq(knowledgeRelationships.userId, userId),
+              sql`${knowledgeRelationships.sourceEntityId} = ANY(${entityIds}) OR ${knowledgeRelationships.targetEntityId} = ANY(${entityIds})`
+            )
+          )
+          .limit(limit)
+      : [];
+
+    return { entities, relationships, facts };
   }
 }
 

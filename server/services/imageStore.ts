@@ -33,6 +33,13 @@ export interface IImageStore {
   ): Promise<ImageStoreResult>;
 
   /**
+   * Get image data from storage
+   * @param storageKey - Storage key of the image
+   * @returns Image buffer and content type
+   */
+  get?(storageKey: string): Promise<{ buffer: Buffer; contentType: string }>;
+
+  /**
    * Delete an image from storage
    * @param storageKey - The storage key/path
    */
@@ -153,6 +160,26 @@ export class LocalTempImageStore implements IImageStore {
     };
   }
 
+  async get(storageKey: string): Promise<{ buffer: Buffer; contentType: string }> {
+    try {
+      const buffer = await fs.readFile(storageKey);
+      // Try to determine content type from file extension
+      const ext = path.extname(storageKey).toLowerCase();
+      const contentTypeMap: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+      };
+      const contentType = contentTypeMap[ext] || 'image/png';
+      return { buffer, contentType };
+    } catch (error: any) {
+      console.error(`[ImageStore] Failed to get image ${storageKey}:`, error);
+      throw new Error(`Failed to retrieve image: ${error.message}`);
+    }
+  }
+
   async delete(storageKey: string): Promise<void> {
     try {
       await fs.unlink(storageKey);
@@ -208,19 +235,33 @@ export class CloudflareR2ImageStore implements IImageStore {
     
     // Construct public URL
     // IMPORTANT: R2 buckets are NOT public by default
-    // You need either:
-    // 1. A custom domain connected to the bucket (set R2_PUBLIC_DOMAIN)
-    // 2. Or enable public access on the bucket and use the R2 public URL
+    // We use a proxy endpoint to serve images securely
+    let baseUrl = process.env.BASE_URL || process.env.DOMAIN;
+    
+    // For local development, default to localhost:5000
+    if (!baseUrl) {
+      baseUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://your-domain.com' // Should be set in production
+        : 'http://localhost:5000';
+    }
+    
+    // Ensure baseUrl has protocol
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = `http://${baseUrl}`;
+    }
+    
+    // Remove trailing slash
+    baseUrl = baseUrl.replace(/\/$/, '');
+    
     if (publicDomain) {
-      // Custom domain (recommended)
+      // Custom domain (recommended) - use direct URL
       this.publicUrl = publicDomain.startsWith('http') ? publicDomain : `https://${publicDomain}`;
       console.log("[ImageStore] Using R2 custom domain:", this.publicUrl);
     } else {
-      // Default R2 public URL (requires bucket to be public)
-      // Format: https://pub-<hash>.r2.dev or https://<account-id>.r2.dev/<bucket-name>
-      // Note: This only works if the bucket has public access enabled
-      this.publicUrl = `https://${accountId}.r2.dev/${bucketName}`;
-      console.warn("[ImageStore] WARNING: Using default R2 URL. Make sure your bucket has public access enabled, or set R2_PUBLIC_DOMAIN with a custom domain.");
+      // Use proxy endpoint for secure access
+      this.publicUrl = `${baseUrl}/api/images/proxy`;
+      console.log("[ImageStore] Using proxy endpoint for R2 images:", this.publicUrl);
+      console.log("[ImageStore] To use direct URLs, set R2_PUBLIC_DOMAIN with a custom domain connected to your R2 bucket.");
     }
 
     // R2 is S3-compatible, use S3 client with R2 endpoint
@@ -301,7 +342,10 @@ export class CloudflareR2ImageStore implements IImageStore {
       throw new Error(`Failed to upload image to R2: ${error.message || error.Code || 'Unknown error'}`);
     }
 
-    const publicUrl = `${this.publicUrl}/${storageKey}`;
+    // Construct public URL - use proxy endpoint if no custom domain
+    const publicUrl = this.publicUrl.includes('/api/images/proxy')
+      ? `${this.publicUrl}?key=${encodeURIComponent(storageKey)}`
+      : `${this.publicUrl}/${storageKey}`;
 
     // Save metadata to database
     const expiresAt = new Date();
@@ -324,6 +368,89 @@ export class CloudflareR2ImageStore implements IImageStore {
       mimeType,
       byteSize,
     };
+  }
+
+  async get(storageKey: string): Promise<{ buffer: Buffer; contentType: string }> {
+    try {
+      // The storageKey should already include "images/" prefix from when it was stored
+      // But handle both cases for safety
+      const key = storageKey.startsWith("images/") ? storageKey : `images/${storageKey}`;
+      
+      console.log(`[ImageStore] Retrieving image from R2:`, {
+        originalKey: storageKey,
+        r2Key: key,
+        bucket: this.bucketName,
+      });
+      
+      const response = await this.s3Client.send(
+        new GetObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        })
+      );
+
+      if (!response.Body) {
+        throw new Error("No image data returned from R2");
+      }
+
+      // Convert stream to buffer
+      // AWS SDK v3 Body is typically a Node.js Readable stream
+      const stream = response.Body as any;
+      const chunks: Buffer[] = [];
+      
+      // Handle different stream types
+      if (stream && typeof stream.on === 'function') {
+        // Node.js Readable stream (most common for AWS SDK v3 in Node.js)
+        await new Promise<void>((resolve, reject) => {
+          stream.on('data', (chunk: Buffer | Uint8Array) => {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          });
+          stream.on('end', resolve);
+          stream.on('error', reject);
+        });
+      } else if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
+        // Async iterable
+        for await (const chunk of stream) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+      } else if (stream && typeof stream.transformToByteArray === 'function') {
+        // Blob-like interface
+        const arrayBuffer = await stream.transformToByteArray();
+        chunks.push(Buffer.from(arrayBuffer));
+      } else if (stream && typeof stream.arrayBuffer === 'function') {
+        // ArrayBuffer interface
+        const arrayBuffer = await stream.arrayBuffer();
+        chunks.push(Buffer.from(arrayBuffer));
+      } else {
+        // Last resort: try to read as buffer
+        throw new Error(`Unsupported stream type: ${typeof stream}`);
+      }
+      
+      if (chunks.length === 0) {
+        throw new Error("No data read from stream");
+      }
+      
+      const buffer = Buffer.concat(chunks);
+
+      const contentType = response.ContentType || "image/png";
+
+      console.log(`[ImageStore] Successfully retrieved image:`, {
+        key,
+        size: buffer.length,
+        contentType,
+      });
+
+      return { buffer, contentType };
+    } catch (error: any) {
+      console.error(`[ImageStore] Failed to get image ${storageKey} from R2:`, {
+        error: error.message,
+        code: error.Code || error.code,
+        name: error.name,
+        key: storageKey,
+        bucket: this.bucketName,
+      });
+      throw new Error(`Failed to retrieve image: ${error.message || error.Code || 'Unknown error'}`);
+    }
   }
 
   async delete(storageKey: string): Promise<void> {

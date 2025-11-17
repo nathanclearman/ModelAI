@@ -1,7 +1,7 @@
 import { storage } from "./storage";
 import type { Workflow, WorkflowRun } from "@shared/schema";
 import OpenAI from "openai";
-import { geminiService } from "./services/geminiService";
+import { generateImageWithStability } from "./services/stabilityService";
 import { imageStore } from "./services/imageStore";
 import { checkImagePrompt } from "./utils/contentFilter";
 
@@ -36,6 +36,11 @@ export class WorkflowEngine {
 
     try {
       const steps = (workflow.steps as WorkflowStep[]) || [];
+      
+      if (!steps || steps.length === 0) {
+        throw new Error("Workflow has no steps configured");
+      }
+      
       let context: any = { ...input };
 
       for (let i = 0; i < steps.length; i++) {
@@ -100,7 +105,16 @@ export class WorkflowEngine {
   }
 
   private async executeAIChat(step: WorkflowStep, context: any, userId: string): Promise<any> {
-    const { modelId, prompt } = step.config;
+    const { modelId, prompt } = step.config || {};
+    
+    if (!modelId) {
+      throw new Error("AI chat step requires modelId in config");
+    }
+    
+    if (!prompt) {
+      throw new Error("AI chat step requires prompt in config");
+    }
+    
     const resolvedPrompt = this.resolveVariables(prompt, context);
 
     const model = await storage.getAIModel(userId, modelId);
@@ -157,8 +171,22 @@ export class WorkflowEngine {
   }
 
   private async executeImageGeneration(step: WorkflowStep, context: any, userId: string): Promise<any> {
-    const { prompt } = step.config;
+    const { 
+      prompt, 
+      negativePrompt,
+      width = 1024,
+      height = 1024,
+      cfgScale = 7,
+      steps = 30,
+      seed,
+    } = step.config || {};
+    
+    if (!prompt) {
+      throw new Error("Image generation step requires prompt in config");
+    }
+    
     const resolvedPrompt = this.resolveVariables(prompt, context);
+    const resolvedNegativePrompt = negativePrompt ? this.resolveVariables(negativePrompt, context) : undefined;
 
     // Check content filter
     const filterResult = checkImagePrompt(resolvedPrompt);
@@ -172,15 +200,28 @@ export class WorkflowEngine {
     }
 
     try {
-      const { imageData } = await geminiService.generateImage(resolvedPrompt);
+      // Use Stability AI for image generation
+      const { imageData, mimeType } = await generateImageWithStability({
+        prompt: resolvedPrompt,
+        negativePrompt: resolvedNegativePrompt,
+        width: Number(width),
+        height: Number(height),
+        cfgScale: Number(cfgScale),
+        steps: Number(steps),
+        seed: seed ? Number(seed) : undefined,
+      });
       
-      // Save the generated image to storage with error handling
+      // Save the generated image to storage
       const imageResult = await imageStore.store(imageData, userId, "generated", resolvedPrompt);
       
       return {
         prompt: resolvedPrompt,
+        negativePrompt: resolvedNegativePrompt,
         imageGenerated: true,
         imageUrl: imageResult.publicUrl,
+        mimeType,
+        width: Number(width),
+        height: Number(height),
         size: imageData.length,
       };
     } catch (error: any) {
@@ -194,13 +235,27 @@ export class WorkflowEngine {
   }
 
   private async executeDelay(step: WorkflowStep): Promise<any> {
-    const { seconds } = step.config;
-    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
-    return { delayed: seconds };
+    const { seconds } = step.config || {};
+    
+    if (seconds === undefined || seconds === null) {
+      throw new Error("Delay step requires seconds in config");
+    }
+    
+    const delaySeconds = Number(seconds);
+    if (isNaN(delaySeconds) || delaySeconds < 0) {
+      throw new Error("Delay seconds must be a non-negative number");
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+    return { delayed: delaySeconds };
   }
 
   private async executeWebhook(step: WorkflowStep, context: any, userId?: string): Promise<any> {
-    let { url, method = "POST", headers = {}, body, authType, authConfig, webhookConfigId } = step.config;
+    let { url, method = "POST", headers = {}, body, authType, authConfig, webhookConfigId } = step.config || {};
+    
+    if (!url && !webhookConfigId) {
+      throw new Error("Webhook step requires url or webhookConfigId in config");
+    }
 
     // If using a saved webhook configuration, fetch auth credentials at runtime
     if (webhookConfigId && userId) {

@@ -9,8 +9,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Trash2, MoveUp, MoveDown, Save } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Plus, 
+  Trash2, 
+  MoveUp, 
+  MoveDown, 
+  Save, 
+  MessageSquare, 
+  Image as ImageIcon, 
+  Clock, 
+  Webhook,
+  Sparkles,
+  Settings,
+  Play,
+  Info
+} from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type StepType = "ai_chat" | "ai_image_generation" | "delay" | "webhook";
 
@@ -49,6 +67,7 @@ type WebhookConfiguration = {
 
 export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | null; onClose: () => void }) {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"info" | "steps">("info");
   const [formData, setFormData] = useState<Workflow>({
     name: workflow?.name || "",
     description: workflow?.description || "",
@@ -69,9 +88,11 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
   const saveMutation = useMutation({
     mutationFn: async (data: Workflow) => {
       if (workflow?.id) {
-        return await apiRequest(`/api/workflows/${workflow.id}`, "PATCH", data);
+        const response = await apiRequest("PATCH", `/api/workflows/${workflow.id}`, data);
+        return await response.json();
       } else {
-        return await apiRequest("/api/workflows", "POST", data);
+        const response = await apiRequest("POST", "/api/workflows", data);
+        return await response.json();
       }
     },
     onSuccess: () => {
@@ -98,6 +119,7 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
       config: getDefaultConfig(type),
     };
     setFormData({ ...formData, steps: [...formData.steps, newStep] });
+    setActiveTab("steps");
   };
 
   const removeStep = (index: number) => {
@@ -123,9 +145,16 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
   const getDefaultConfig = (type: StepType): Record<string, any> => {
     switch (type) {
       case "ai_chat":
-        return { modelId: "", prompt: "" };
+        return { modelId: models[0]?.id || "", prompt: "" };
       case "ai_image_generation":
-        return { prompt: "" };
+        return { 
+          prompt: "",
+          negativePrompt: "",
+          width: 1024,
+          height: 1024,
+          cfgScale: 7,
+          steps: 30,
+        };
       case "delay":
         return { seconds: 5 };
       case "webhook":
@@ -168,15 +197,15 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
   const getStepIcon = (type: StepType) => {
     switch (type) {
       case "ai_chat":
-        return "💬";
+        return <MessageSquare className="w-5 h-5" />;
       case "ai_image_generation":
-        return "🎨";
+        return <ImageIcon className="w-5 h-5" />;
       case "delay":
-        return "⏱️";
+        return <Clock className="w-5 h-5" />;
       case "webhook":
-        return "🔗";
+        return <Webhook className="w-5 h-5" />;
       default:
-        return "📝";
+        return <Settings className="w-5 h-5" />;
     }
   };
 
@@ -195,387 +224,595 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
     }
   };
 
+  const getStepColor = (type: StepType) => {
+    switch (type) {
+      case "ai_chat":
+        return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+      case "ai_image_generation":
+        return "bg-purple-500/10 text-purple-500 border-purple-500/20";
+      case "delay":
+        return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
+      case "webhook":
+        return "bg-green-500/10 text-green-500 border-green-500/20";
+      default:
+        return "bg-gray-500/10 text-gray-500 border-gray-500/20";
+    }
+  };
+
   return (
-    <div className="h-full overflow-auto">
-      <div className="max-w-5xl mx-auto p-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={onClose} data-testid="button-back">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <h1 className="text-3xl font-bold">
-            {workflow?.id ? "Edit Workflow" : "Create Workflow"}
-          </h1>
+    <div className="h-full overflow-auto bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                {workflow?.id ? "Edit Workflow" : "Create Workflow"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Build powerful automation workflows with AI
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saveMutation.isPending} className="bg-gradient-to-r from-primary to-primary/80">
+              <Save className="w-4 h-4 mr-2" />
+              {saveMutation.isPending ? "Saving..." : "Save Workflow"}
+            </Button>
+          </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>Configure your workflow's basic settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="name">Workflow Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="My Awesome Workflow"
-                data-testid="input-workflow-name"
-              />
-            </div>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "info" | "steps")} className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="info" className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Configuration
+            </TabsTrigger>
+            <TabsTrigger value="steps" className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Steps ({formData.steps.length})
+            </TabsTrigger>
+          </TabsList>
 
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Describe what this workflow does..."
-                rows={3}
-                data-testid="input-workflow-description"
-              />
-            </div>
+          <TabsContent value="info" className="space-y-6">
+            <Card className="border-2">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-primary" />
+                  Basic Information
+                </CardTitle>
+                <CardDescription>Configure your workflow's basic settings and metadata</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-base font-semibold">Workflow Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="My Awesome Workflow"
+                    className="h-11"
+                  />
+                </div>
 
-            <div>
-              <Label htmlFor="trigger">Trigger Type</Label>
-              <Select
-                value={formData.triggerType}
-                onValueChange={(value: any) => setFormData({ ...formData, triggerType: value })}
-              >
-                <SelectTrigger id="trigger" data-testid="select-trigger-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">Manual</SelectItem>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="webhook">Webhook</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description" className="text-base font-semibold">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Describe what this workflow does and when to use it..."
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="enabled">Enabled</Label>
-                <p className="text-sm text-muted-foreground">
-                  Enable or disable this workflow
-                </p>
-              </div>
-              <Switch
-                id="enabled"
-                checked={formData.enabled}
-                onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
-                data-testid="switch-enabled"
-              />
-            </div>
-          </CardContent>
-        </Card>
+                <Separator />
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Workflow Steps</CardTitle>
-                <CardDescription>Add and configure the steps in your workflow</CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <Select onValueChange={(type: StepType) => addStep(type)}>
-                  <SelectTrigger className="w-[180px]" data-testid="select-add-step">
-                    <SelectValue placeholder="Add step..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ai_chat">AI Chat</SelectItem>
-                    <SelectItem value="ai_image_generation">Image Generation</SelectItem>
-                    <SelectItem value="delay">Delay</SelectItem>
-                    <SelectItem value="webhook">Webhook</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {formData.steps.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No steps added yet. Click "Add step..." to get started.
-              </div>
-            ) : (
-              formData.steps.map((step, index) => (
-                <Card key={step.id} data-testid={`card-step-${index}`}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">{getStepIcon(step.type)}</span>
-                        <div>
-                          <CardTitle className="text-lg">
-                            Step {index + 1}: {getStepTitle(step.type)}
-                          </CardTitle>
-                          <Badge variant="secondary" className="mt-1">
-                            {step.type}
-                          </Badge>
+                <div className="space-y-2">
+                  <Label htmlFor="trigger" className="text-base font-semibold">Trigger Type</Label>
+                  <Select
+                    value={formData.triggerType}
+                    onValueChange={(value: any) => setFormData({ ...formData, triggerType: value })}
+                  >
+                    <SelectTrigger id="trigger" className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">
+                        <div className="flex items-center gap-2">
+                          <Play className="w-4 h-4" />
+                          Manual - Run on demand
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => moveStep(index, "up")}
-                          disabled={index === 0}
-                          data-testid={`button-move-up-${index}`}
-                        >
-                          <MoveUp className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => moveStep(index, "down")}
-                          disabled={index === formData.steps.length - 1}
-                          data-testid={`button-move-down-${index}`}
-                        >
-                          <MoveDown className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => removeStep(index)}
-                          data-testid={`button-remove-step-${index}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {step.type === "ai_chat" && (
-                      <>
-                        <div>
-                          <Label>AI Model</Label>
-                          <Select
-                            value={step.config.modelId}
-                            onValueChange={(value) => updateStepConfig(index, { modelId: value })}
-                          >
-                            <SelectTrigger data-testid={`select-model-${index}`}>
-                              <SelectValue placeholder="Select a model..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {models.map((model) => (
-                                <SelectItem key={model.id} value={model.id}>
-                                  {model.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      </SelectItem>
+                      <SelectItem value="scheduled">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          Scheduled - Run automatically
                         </div>
-                        <div>
-                          <Label>Prompt</Label>
-                          <Textarea
-                            value={step.config.prompt}
-                            onChange={(e) => updateStepConfig(index, { prompt: e.target.value })}
-                            placeholder="Enter your prompt... Use {{variable}} for context"
-                            rows={4}
-                            data-testid={`input-prompt-${index}`}
-                          />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Use &#123;&#123;step_1_result.response&#125;&#125; to reference previous steps
-                          </p>
+                      </SelectItem>
+                      <SelectItem value="webhook">
+                        <div className="flex items-center gap-2">
+                          <Webhook className="w-4 h-4" />
+                          Webhook - Triggered by external events
                         </div>
-                      </>
-                    )}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                    {step.type === "ai_image_generation" && (
-                      <div>
-                        <Label>Prompt</Label>
-                        <Textarea
-                          value={step.config.prompt}
-                          onChange={(e) => updateStepConfig(index, { prompt: e.target.value })}
-                          placeholder="Describe the image to generate..."
-                          rows={3}
-                          data-testid={`input-prompt-${index}`}
-                        />
-                      </div>
-                    )}
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="enabled" className="text-base font-semibold cursor-pointer">Enabled</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enable this workflow to allow execution
+                    </p>
+                  </div>
+                  <Switch
+                    id="enabled"
+                    checked={formData.enabled}
+                    onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                    {step.type === "delay" && (
-                      <div>
-                        <Label>Delay (seconds)</Label>
-                        <Input
-                          type="number"
-                          value={step.config.seconds}
-                          onChange={(e) => updateStepConfig(index, { seconds: parseInt(e.target.value) || 0 })}
-                          min={1}
-                          data-testid={`input-delay-${index}`}
-                        />
-                      </div>
-                    )}
-
-                    {step.type === "webhook" && (
-                      <>
-                        <div>
-                          <Label>Saved Webhook (Optional)</Label>
-                          <Select
-                            value={step.config.webhookConfigId || ""}
-                            onValueChange={(value) => {
-                              if (value === "custom") {
-                                updateStepConfig(index, { 
-                                  webhookConfigId: "",
-                                  url: "",
-                                  method: "POST",
-                                  headers: {},
-                                  body: {},
-                                  authType: null,
-                                  authConfig: null,
-                                });
-                              } else {
-                                const webhook = webhooks.find(w => w.id === value);
-                                if (webhook) {
-                                  // Only store the webhook config ID and basic display info
-                                  // Auth credentials will be fetched at runtime for security
-                                  updateStepConfig(index, { 
-                                    webhookConfigId: webhook.id,
-                                    url: webhook.url,
-                                    method: webhook.method,
-                                    headers: webhook.headers || {},
-                                    body: webhook.bodyTemplate || {},
-                                    authType: webhook.authType,
-                                    // Do NOT store authConfig - will be loaded at runtime
-                                    authConfig: null,
-                                  });
-                                }
-                              }
-                            }}
-                          >
-                            <SelectTrigger data-testid={`select-webhook-config-${index}`}>
-                              <SelectValue placeholder="Select saved webhook or custom..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="custom">Custom Configuration</SelectItem>
-                              {webhooks.map((webhook) => (
-                                <SelectItem key={webhook.id} value={webhook.id}>
-                                  {webhook.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {webhooks.length === 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              No saved webhooks. Go to Webhooks page to create reusable configurations.
-                            </p>
-                          )}
-                        </div>
-
-                        {!step.config.webhookConfigId && (
-                          <>
-                            <div>
-                              <Label>URL</Label>
-                              <Input
-                                value={step.config.url}
-                                onChange={(e) => updateStepConfig(index, { url: e.target.value })}
-                                placeholder="https://api.example.com/webhook"
-                                data-testid={`input-url-${index}`}
-                              />
+          <TabsContent value="steps" className="space-y-6">
+            <Card className="border-2">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-primary" />
+                      Workflow Steps
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      Add and configure steps to build your automation workflow
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Select onValueChange={(type: StepType) => addStep(type)}>
+                      <SelectTrigger className="w-[200px] h-10">
+                        <SelectValue placeholder="Add step..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ai_chat">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="w-4 h-4" />
+                            AI Chat
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="ai_image_generation">
+                          <div className="flex items-center gap-2">
+                            <ImageIcon className="w-4 h-4" />
+                            Image Generation (Stability AI)
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="delay">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            Delay
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="webhook">
+                          <div className="flex items-center gap-2">
+                            <Webhook className="w-4 h-4" />
+                            Webhook
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-6">
+                {formData.steps.length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                    <Sparkles className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No steps yet</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Add your first step to start building your workflow
+                    </p>
+                    <Button onClick={() => addStep("ai_chat")} variant="outline">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add First Step
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {formData.steps.map((step, index) => (
+                      <Card key={step.id} className={`border-2 ${getStepColor(step.type)}`}>
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-4 flex-1">
+                              <div className={`p-2 rounded-lg ${getStepColor(step.type)}`}>
+                                {getStepIcon(step.type)}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <CardTitle className="text-lg">
+                                    Step {index + 1}: {getStepTitle(step.type)}
+                                  </CardTitle>
+                                  <Badge variant="outline" className="font-mono text-xs">
+                                    {step.type}
+                                  </Badge>
+                                </div>
+                                {index < formData.steps.length - 1 && (
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                                    <div className="h-px w-8 bg-current" />
+                                    <span>Next: Step {index + 2}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <Label>Method</Label>
-                              <Select
-                                value={step.config.method}
-                                onValueChange={(value) => updateStepConfig(index, { method: value })}
+                            <div className="flex gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => moveStep(index, "up")}
+                                disabled={index === 0}
+                                className="h-8 w-8"
                               >
-                                <SelectTrigger data-testid={`select-method-${index}`}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="GET">GET</SelectItem>
-                                  <SelectItem value="POST">POST</SelectItem>
-                                  <SelectItem value="PUT">PUT</SelectItem>
-                                  <SelectItem value="PATCH">PATCH</SelectItem>
-                                </SelectContent>
-                              </Select>
+                                <MoveUp className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => moveStep(index, "down")}
+                                disabled={index === formData.steps.length - 1}
+                                className="h-8 w-8"
+                              >
+                                <MoveDown className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => removeStep(index)}
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
-                            <div>
-                              <Label>Headers (JSON)</Label>
-                              <Textarea
-                                value={typeof step.config.headers === 'string' ? step.config.headers : JSON.stringify(step.config.headers || {}, null, 2)}
-                                onChange={(e) => {
-                                  try {
-                                    const parsed = JSON.parse(e.target.value);
-                                    updateStepConfig(index, { headers: parsed });
-                                  } catch {
-                                    updateStepConfig(index, { headers: e.target.value });
-                                  }
-                                }}
-                                placeholder='{"Content-Type": "application/json"}'
-                                className="font-mono text-sm"
-                                rows={3}
-                                data-testid={`input-headers-${index}`}
-                              />
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4 pt-4">
+                          {step.type === "ai_chat" && (
+                            <>
+                              <div className="space-y-2">
+                                <Label>AI Model</Label>
+                                <Select
+                                  value={step.config.modelId}
+                                  onValueChange={(value) => updateStepConfig(index, { modelId: value })}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select a model..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {models.map((model) => (
+                                      <SelectItem key={model.id} value={model.id}>
+                                        <div className="flex items-center justify-between w-full">
+                                          <span>{model.name}</span>
+                                          <Badge variant="secondary" className="ml-2 text-xs">
+                                            {model.model}
+                                          </Badge>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Prompt</Label>
+                                <Textarea
+                                  value={step.config.prompt}
+                                  onChange={(e) => updateStepConfig(index, { prompt: e.target.value })}
+                                  placeholder="Enter your prompt... Use {{variable}} for context from previous steps"
+                                  rows={5}
+                                  className="font-mono text-sm"
+                                />
+                                <Alert>
+                                  <Info className="w-4 h-4" />
+                                  <AlertDescription className="text-xs">
+                                    Use <code className="px-1 py-0.5 bg-muted rounded">&#123;&#123;step_1_result.response&#125;&#125;</code> to reference previous step outputs
+                                  </AlertDescription>
+                                </Alert>
+                              </div>
+                            </>
+                          )}
+
+                          {step.type === "ai_image_generation" && (
+                            <div className="space-y-4">
+                              <Alert className="bg-purple-500/10 border-purple-500/20">
+                                <ImageIcon className="w-4 h-4 text-purple-500" />
+                                <AlertDescription className="text-sm">
+                                  Using Stability AI's Stable Diffusion XL for high-quality image generation
+                                </AlertDescription>
+                              </Alert>
+                              
+                              <div className="space-y-2">
+                                <Label>Prompt</Label>
+                                <Textarea
+                                  value={step.config.prompt}
+                                  onChange={(e) => updateStepConfig(index, { prompt: e.target.value })}
+                                  placeholder="Describe the image you want to generate in detail..."
+                                  rows={4}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Negative Prompt (Optional)</Label>
+                                <Textarea
+                                  value={step.config.negativePrompt || ""}
+                                  onChange={(e) => updateStepConfig(index, { negativePrompt: e.target.value })}
+                                  placeholder="What to avoid in the image (e.g., blurry, low quality, distorted)"
+                                  rows={3}
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Width</Label>
+                                  <Select
+                                    value={String(step.config.width || 1024)}
+                                    onValueChange={(value) => updateStepConfig(index, { width: parseInt(value) })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="512">512px</SelectItem>
+                                      <SelectItem value="768">768px</SelectItem>
+                                      <SelectItem value="1024">1024px</SelectItem>
+                                      <SelectItem value="1280">1280px</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Height</Label>
+                                  <Select
+                                    value={String(step.config.height || 1024)}
+                                    onValueChange={(value) => updateStepConfig(index, { height: parseInt(value) })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="512">512px</SelectItem>
+                                      <SelectItem value="768">768px</SelectItem>
+                                      <SelectItem value="1024">1024px</SelectItem>
+                                      <SelectItem value="1280">1280px</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>CFG Scale: {step.config.cfgScale || 7}</Label>
+                                  <Input
+                                    type="range"
+                                    min="1"
+                                    max="20"
+                                    value={step.config.cfgScale || 7}
+                                    onChange={(e) => updateStepConfig(index, { cfgScale: parseInt(e.target.value) })}
+                                    className="w-full"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Higher = more adherence to prompt (1-20)
+                                  </p>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Steps: {step.config.steps || 30}</Label>
+                                  <Input
+                                    type="range"
+                                    min="10"
+                                    max="50"
+                                    value={step.config.steps || 30}
+                                    onChange={(e) => updateStepConfig(index, { steps: parseInt(e.target.value) })}
+                                    className="w-full"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    More steps = higher quality (10-50)
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Seed (Optional)</Label>
+                                <Input
+                                  type="number"
+                                  value={step.config.seed || ""}
+                                  onChange={(e) => updateStepConfig(index, { seed: e.target.value ? parseInt(e.target.value) : undefined })}
+                                  placeholder="Leave empty for random"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Use the same seed to generate similar images
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <Label>Body Template (JSON)</Label>
-                              <Textarea
-                                value={typeof step.config.body === 'string' ? step.config.body : JSON.stringify(step.config.body || {}, null, 2)}
-                                onChange={(e) => {
-                                  try {
-                                    const parsed = JSON.parse(e.target.value);
-                                    updateStepConfig(index, { body: parsed });
-                                  } catch {
-                                    updateStepConfig(index, { body: e.target.value });
-                                  }
-                                }}
-                                placeholder='{"message": "{{step_1_result.response}}"}'
-                                className="font-mono text-sm"
-                                rows={4}
-                                data-testid={`input-body-${index}`}
+                          )}
+
+                          {step.type === "delay" && (
+                            <div className="space-y-2">
+                              <Label>Delay Duration (seconds)</Label>
+                              <Input
+                                type="number"
+                                value={step.config.seconds}
+                                onChange={(e) => updateStepConfig(index, { seconds: parseInt(e.target.value) || 0 })}
+                                min={1}
+                                max={3600}
+                                className="max-w-xs"
                               />
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Use &#123;&#123;step_X_result&#125;&#125; to reference previous step outputs
+                              <p className="text-xs text-muted-foreground">
+                                Wait time before executing the next step (1-3600 seconds)
                               </p>
                             </div>
-                          </>
-                        )}
+                          )}
 
-                        {step.config.webhookConfigId && (
-                          <div className="rounded-lg bg-muted p-4">
-                            <div className="text-sm font-medium mb-2">Configuration Preview</div>
-                            <div className="space-y-1 text-sm">
-                              <div className="flex gap-2">
-                                <span className="text-muted-foreground">Method:</span>
-                                <Badge variant="outline">{step.config.method}</Badge>
+                          {step.type === "webhook" && (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Saved Webhook Configuration (Optional)</Label>
+                                <Select
+                                  value={step.config.webhookConfigId || ""}
+                                  onValueChange={(value) => {
+                                    if (value === "custom") {
+                                      updateStepConfig(index, { 
+                                        webhookConfigId: "",
+                                        url: "",
+                                        method: "POST",
+                                        headers: {},
+                                        body: {},
+                                        authType: null,
+                                        authConfig: null,
+                                      });
+                                    } else {
+                                      const webhook = webhooks.find(w => w.id === value);
+                                      if (webhook) {
+                                        updateStepConfig(index, { 
+                                          webhookConfigId: webhook.id,
+                                          url: webhook.url,
+                                          method: webhook.method,
+                                          headers: webhook.headers || {},
+                                          body: webhook.bodyTemplate || {},
+                                          authType: webhook.authType,
+                                          authConfig: null,
+                                        });
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select saved webhook or use custom..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="custom">Custom Configuration</SelectItem>
+                                    {webhooks.map((webhook) => (
+                                      <SelectItem key={webhook.id} value={webhook.id}>
+                                        {webhook.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
-                              <div>
-                                <span className="text-muted-foreground">URL:</span>
-                                <code className="ml-2 text-xs bg-background px-2 py-0.5 rounded">
-                                  {step.config.url}
-                                </code>
-                              </div>
-                              {step.config.authType && (
-                                <div className="flex gap-2">
-                                  <span className="text-muted-foreground">Auth:</span>
-                                  <Badge variant="secondary">{step.config.authType}</Badge>
+
+                              {!step.config.webhookConfigId && (
+                                <>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label>URL</Label>
+                                      <Input
+                                        value={step.config.url}
+                                        onChange={(e) => updateStepConfig(index, { url: e.target.value })}
+                                        placeholder="https://api.example.com/webhook"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>HTTP Method</Label>
+                                      <Select
+                                        value={step.config.method}
+                                        onValueChange={(value) => updateStepConfig(index, { method: value })}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="GET">GET</SelectItem>
+                                          <SelectItem value="POST">POST</SelectItem>
+                                          <SelectItem value="PUT">PUT</SelectItem>
+                                          <SelectItem value="PATCH">PATCH</SelectItem>
+                                          <SelectItem value="DELETE">DELETE</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Headers (JSON)</Label>
+                                    <Textarea
+                                      value={typeof step.config.headers === 'string' ? step.config.headers : JSON.stringify(step.config.headers || {}, null, 2)}
+                                      onChange={(e) => {
+                                        try {
+                                          const parsed = JSON.parse(e.target.value);
+                                          updateStepConfig(index, { headers: parsed });
+                                        } catch {
+                                          updateStepConfig(index, { headers: e.target.value });
+                                        }
+                                      }}
+                                      placeholder='{"Content-Type": "application/json"}'
+                                      className="font-mono text-sm"
+                                      rows={3}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Body Template (JSON)</Label>
+                                    <Textarea
+                                      value={typeof step.config.body === 'string' ? step.config.body : JSON.stringify(step.config.body || {}, null, 2)}
+                                      onChange={(e) => {
+                                        try {
+                                          const parsed = JSON.parse(e.target.value);
+                                          updateStepConfig(index, { body: parsed });
+                                        } catch {
+                                          updateStepConfig(index, { body: e.target.value });
+                                        }
+                                      }}
+                                      placeholder='{"message": "{{step_1_result.response}}"}'
+                                      className="font-mono text-sm"
+                                      rows={5}
+                                    />
+                                    <Alert>
+                                      <Info className="w-4 h-4" />
+                                      <AlertDescription className="text-xs">
+                                        Use <code className="px-1 py-0.5 bg-muted rounded">&#123;&#123;step_X_result&#125;&#125;</code> to reference previous step outputs
+                                      </AlertDescription>
+                                    </Alert>
+                                  </div>
+                                </>
+                              )}
+
+                              {step.config.webhookConfigId && (
+                                <div className="rounded-lg bg-muted/50 p-4 border">
+                                  <div className="text-sm font-semibold mb-3">Configuration Preview</div>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-muted-foreground">Method:</span>
+                                      <Badge variant="outline">{step.config.method}</Badge>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">URL:</span>
+                                      <code className="ml-2 text-xs bg-background px-2 py-1 rounded border">
+                                        {step.config.url}
+                                      </code>
+                                    </div>
+                                    {step.config.authType && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-muted-foreground">Auth:</span>
+                                        <Badge variant="secondary">{step.config.authType}</Badge>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-3">
+                                    Using saved webhook configuration. Variables in body template will be replaced at runtime.
+                                  </p>
                                 </div>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-2">
-                              Using saved webhook configuration. Variables in body template will be replaced at runtime.
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} data-testid="button-cancel">
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saveMutation.isPending} data-testid="button-save">
-            <Save className="w-4 h-4 mr-2" />
-            {saveMutation.isPending ? "Saving..." : "Save Workflow"}
-          </Button>
-        </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

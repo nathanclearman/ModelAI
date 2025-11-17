@@ -55,7 +55,10 @@ export default function Webhooks() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => apiRequest("/api/webhooks", "POST", data),
+    mutationFn: async (data: any) => {
+      const response = await apiRequest("POST", "/api/webhooks", data);
+      return await response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/webhooks"] });
       setShowCreateDialog(false);
@@ -75,8 +78,10 @@ export default function Webhooks() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) =>
-      apiRequest(`/api/webhooks/${id}`, "PATCH", data),
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest("PATCH", `/api/webhooks/${id}`, data);
+      return await response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/webhooks"] });
       setShowEditDialog(false);
@@ -97,7 +102,9 @@ export default function Webhooks() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest(`/api/webhooks/${id}`, "DELETE"),
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/webhooks/${id}`);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/webhooks"] });
       toast({
@@ -116,7 +123,7 @@ export default function Webhooks() {
 
   const testMutation = useMutation({
     mutationFn: async ({ id, testData }: { id: string; testData: any }) => {
-      const response = await apiRequest(`/api/webhooks/${id}/test`, "POST", { testData });
+      const response = await apiRequest("POST", `/api/webhooks/${id}/test`, { testData });
       return await response.json();
     },
     onSuccess: (data: any) => {
