@@ -284,9 +284,9 @@ export default function Settings() {
   return (
     <div className="space-y-16">
       <div className="py-12">
-        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Settings</h1>
+        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">ModelAI Settings</h1>
         <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-          Manage your account and application preferences
+          Manage your ModelAI account and application preferences
         </p>
       </div>
 

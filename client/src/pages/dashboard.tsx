@@ -65,15 +65,17 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-16">
-      <div className="relative py-12 px-8 -mx-8 rounded-2xl bg-muted/30 overflow-hidden border border-border/50">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
+      {/* Full-bleed hero */}
+      <div className="relative -mx-8 px-8 py-14 rounded-2xl overflow-hidden border border-border/50">
+        <div className="absolute inset-0 bg-radial-aurora" />
+        <div className="absolute inset-0 bg-grid-faint" />
         <div className="relative">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium mb-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/15 text-primary text-sm font-medium mb-6">
             <span>Welcome back</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">Dashboard</h1>
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-3">Your ModelAI Control Center</h1>
           <p className="text-lg text-muted-foreground max-w-2xl">
-            Manage your AI models and monitor conversations
+            Build, monitor, and scale your AI assistants with ModelAI's real‑time usage tracking and powerful templates.
           </p>
         </div>
       </div>
@@ -101,14 +103,14 @@ export default function Dashboard() {
 
       <UsageWidget />
 
-      <Card>
+      <Card className="glass">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <CardTitle>Recent Conversations</CardTitle>
             <CardDescription> </CardDescription>
           </div>
           <Link href="/history">
-            <Button variant="outline" size="sm" data-testid="button-view-all">
+            <Button variant="outline" size="sm" className="border-secondary-border" data-testid="button-view-all">
               View All
             </Button>
           </Link>
@@ -149,7 +151,7 @@ export default function Dashboard() {
             </p>
           </div>
           <Link href="/templates">
-            <Button variant="outline" data-testid="button-browse-templates">
+            <Button variant="outline" className="border-secondary-border" data-testid="button-browse-templates">
               Browse All
             </Button>
           </Link>
@@ -165,7 +167,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Card className="bg-muted/30 border-border/50">
+      <Card className="glass">
         <CardContent className="p-10">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
@@ -176,7 +178,7 @@ export default function Dashboard() {
             </div>
             <Button
               size="lg"
-              className="gap-2"
+              className="gap-2 btn-gradient"
               onClick={() => setLocation("/chat/new")}
               data-testid="button-create-custom"
             >

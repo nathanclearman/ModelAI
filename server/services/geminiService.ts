@@ -1,13 +1,16 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Using Replit's AI Integrations service (no API key needed, billed to credits)
+// Configure Gemini client. Prefer explicit envs; fall back to stable defaults.
 const ai = new GoogleGenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY || "",
   httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL || "",
+    apiVersion: process.env.AI_INTEGRATIONS_GEMINI_API_VERSION || "v1beta",
+    // IMPORTANT: Use the root host, not a path with version. Version is set via apiVersion above.
+    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL || "https://generativelanguage.googleapis.com",
   },
 });
+
+const hasStability = Boolean(process.env.STABILITY_API_KEY);
 
 export interface ImageGenerationResult {
   imageData: string; // base64 data URL
@@ -24,6 +27,40 @@ export interface ImageAnalysisResult {
  * @returns Base64 data URL of the generated image
  */
 export async function generateImage(prompt: string): Promise<ImageGenerationResult> {
+  const tryStability = async (): Promise<ImageGenerationResult> => {
+    if (!hasStability) {
+      throw new Error("Stability fallback not configured");
+    }
+    console.log("[Stability] Falling back to SDXL 1.0 (1024x1024) for image generation");
+    const endpoint = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image";
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": `Bearer ${process.env.STABILITY_API_KEY}`,
+      },
+      body: JSON.stringify({
+        text_prompts: [{ text: prompt }],
+        cfg_scale: 7,
+        height: 1024,
+        width: 1024,
+        samples: 1,
+        steps: 30,
+      }),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`Stability error ${response.status}: ${text || response.statusText}`);
+    }
+    const data: any = await response.json();
+    const b64 = data?.artifacts?.[0]?.base64;
+    if (!b64) throw new Error("Stability returned no image data");
+    const mimeType = "image/png";
+    const imageData = `data:${mimeType};base64,${b64}`;
+    return { imageData, mimeType };
+  };
+
   try {
     console.log("[Gemini] Generating image with prompt:", prompt);
     
@@ -45,8 +82,11 @@ export async function generateImage(prompt: string): Promise<ImageGenerationResu
     const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
     
     if (!imagePart?.inlineData?.data) {
-      console.error("[Gemini] Full response:", JSON.stringify(response, null, 2));
-      throw new Error("No image data in response");
+      console.warn("[Gemini] No inline image; attempting Stability fallback…");
+      if (hasStability) {
+        return await tryStability();
+      }
+      throw new Error("No image data in response and Stability not configured");
     }
 
     const mimeType = imagePart.inlineData.mimeType || "image/png";
@@ -55,8 +95,25 @@ export async function generateImage(prompt: string): Promise<ImageGenerationResu
     console.log("[Gemini] Successfully generated image, size:", imageData.length);
     return { imageData, mimeType };
   } catch (error: any) {
+    // If Gemini failed (e.g., 429 quota), try OpenAI fallback if configured
+    const message = String(error?.message || error);
+    const shouldFallback = hasStability && (
+      message.includes("RESOURCE_EXHAUSTED") ||
+      message.includes("quota") ||
+      message.includes("429") ||
+      true // be resilient: try fallback on any Gemini error if Stability is available
+    );
+    if (shouldFallback) {
+      try {
+        console.warn("[Gemini] Error occurred, attempting Stability fallback:", message);
+        return await tryStability();
+      } catch (fallbackErr: any) {
+        console.error("[Stability] Fallback failed:", fallbackErr);
+        throw new Error(`Failed to generate image (Gemini+Stability): ${fallbackErr?.message || fallbackErr}`);
+      }
+    }
     console.error("Image generation error:", error);
-    throw new Error(`Failed to generate image: ${error.message}`);
+    throw new Error(`Failed to generate image: ${message}`);
   }
 }
 

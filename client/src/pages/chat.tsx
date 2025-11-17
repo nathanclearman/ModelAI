@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { ChatInterface } from "@/components/chat-interface";
 import { ModelConfigPanel, type ModelConfig } from "@/components/model-config-panel";
 import { ModelVersionHistory } from "@/components/model-version-history";
+import { WorkflowBuilder } from "@/components/workflow-builder";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Settings, AlertTriangle, Image as ImageIcon } from "lucide-react";
@@ -36,6 +37,10 @@ export default function Chat() {
   const { data: model, isLoading } = useQuery<AIModel>({
     queryKey: ["/api/models", modelId],
     enabled: !!modelId && modelId !== "new",
+  });
+
+  const { data: allModels = [] } = useQuery<AIModel[]>({
+    queryKey: ["/api/models"],
   });
 
   const { data: conversation } = useQuery<{
@@ -79,16 +84,20 @@ export default function Chat() {
       role: "user",
       content: message,
       timestamp: new Date().toISOString(),
+      messageId: crypto.randomUUID(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setIsStreaming(true);
 
     let assistantContent = "";
+    const assistantMessageId = crypto.randomUUID();
     const assistantMessage: Message = {
       role: "assistant",
       content: "",
       timestamp: new Date().toISOString(),
+      messageId: assistantMessageId,
+      parentMessageId: userMessage.messageId,
     };
 
     setMessages((prev) => [...prev, assistantMessage]);
@@ -262,7 +271,7 @@ export default function Chat() {
             {model?.name || "New Model"}
           </h1>
           <p className="text-lg text-muted-foreground mt-2">
-            {model?.description || "Configure your AI assistant"}
+            {model?.description || "Configure your ModelAI assistant"}
           </p>
         </div>
       </div>
@@ -306,6 +315,7 @@ export default function Chat() {
         <div className="h-[600px]">
           <ChatInterface
             modelName={model?.name || "New Model"}
+            conversationId={conversationId}
             initialMessages={messages}
             onSendMessage={handleSendMessage}
             isLoading={isStreaming}
@@ -317,6 +327,9 @@ export default function Chat() {
             }}
             onAnalyzeImage={(imageData, prompt) => {
               analyzeImageMutation.mutate({ imageData, prompt });
+            }}
+            onMessagesUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
             }}
           />
         </div>
@@ -344,6 +357,9 @@ export default function Chat() {
           {modelId && modelId !== "new" && (
             <ModelVersionHistory modelId={modelId} />
           )}
+          <div className="pt-4 border-t">
+            <WorkflowBuilder models={allModels} />
+          </div>
         </div>
       </div>
     </div>

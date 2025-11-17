@@ -112,9 +112,9 @@ export default function ApiKeysPage() {
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold" data-testid="text-page-title">API Keys</h1>
+            <h1 className="text-3xl font-bold" data-testid="text-page-title">ModelAI API Keys</h1>
             <p className="text-muted-foreground mt-2">
-              Manage API keys to access your models programmatically
+              Manage API keys to access your ModelAI models programmatically
             </p>
           </div>
           <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-api-key">

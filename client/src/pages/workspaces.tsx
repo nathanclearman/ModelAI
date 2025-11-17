@@ -173,9 +173,9 @@ export default function WorkspacesPage() {
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold" data-testid="text-page-title">Team Workspaces</h1>
+            <h1 className="text-3xl font-bold" data-testid="text-page-title">ModelAI Team Workspaces</h1>
             <p className="text-muted-foreground mt-2">
-              Collaborate with your team and share AI models
+              Collaborate with your team and share ModelAI models
             </p>
           </div>
           <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-workspace">

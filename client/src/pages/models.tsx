@@ -112,9 +112,9 @@ export default function Models() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium mb-5">
             <span>{models.length} Model{models.length !== 1 ? "s" : ""}</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">My Models</h1>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">My ModelAI Models</h1>
           <p className="text-lg text-muted-foreground max-w-2xl">
-            Manage your custom AI assistants and start conversations
+            Manage your custom ModelAI assistants and start conversations
           </p>
         </div>
       </div>

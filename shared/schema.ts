@@ -122,6 +122,8 @@ export const conversations = pgTable("conversations", {
   modelId: varchar("model_id").notNull(),
   title: text("title").notNull(),
   messages: jsonb("messages").notNull().default([]),
+  branches: jsonb("branches").default([]), // Array of branch metadata
+  activeBranchId: varchar("active_branch_id"), // Currently active branch
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -143,6 +145,9 @@ export type Message = {
   imageUrl?: string; // Optional image URL (from object storage, not base64)
   imageType?: "upload" | "generated"; // Track if image was uploaded or AI-generated
   documentIds?: string[]; // Optional array of document IDs attached to this message
+  messageId?: string; // Unique ID for this message (for branching)
+  parentMessageId?: string; // ID of parent message (for branching)
+  branchId?: string; // ID of the branch this message belongs to
 };
 
 // Image assets table for generated/uploaded images
@@ -443,6 +448,179 @@ export const insertFineTuningFileSchema = createInsertSchema(fineTuningFiles).om
 
 export type InsertFineTuningFile = z.infer<typeof insertFineTuningFileSchema>;
 export type FineTuningFile = typeof fineTuningFiles.$inferSelect;
+
+// Conversation branches for branching feature
+export const conversationBranches = pgTable("conversation_branches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull(),
+  parentMessageId: varchar("parent_message_id").notNull(), // Message where branch was created
+  branchName: text("branch_name"),
+  messages: jsonb("messages").notNull().default([]), // Messages in this branch
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_conversation_branches_conversation").on(table.conversationId),
+  index("idx_conversation_branches_parent").on(table.parentMessageId),
+]);
+
+export type ConversationBranch = typeof conversationBranches.$inferSelect;
+export type InsertConversationBranch = typeof conversationBranches.$inferInsert;
+
+// Prompt templates for prompt engineering
+export const promptTemplates = pgTable("prompt_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  workspaceId: varchar("workspace_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"), // e.g., "coding", "writing", "analysis"
+  prompt: text("prompt").notNull(), // Template with {{variables}}
+  variables: jsonb("variables").default([]), // Array of variable definitions
+  modelId: varchar("model_id"), // Default model to use
+  isPublic: integer("is_public").notNull().default(0),
+  isFavorite: integer("is_favorite").notNull().default(0),
+  usageCount: integer("usage_count").notNull().default(0),
+  rating: integer("rating").default(0), // Average rating
+  ratingCount: integer("rating_count").notNull().default(0),
+  tags: text("tags").array(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_prompt_templates_user").on(table.userId),
+  index("idx_prompt_templates_public").on(table.isPublic),
+  index("idx_prompt_templates_category").on(table.category),
+]);
+
+export const insertPromptTemplateSchema = createInsertSchema(promptTemplates).omit({
+  id: true,
+  userId: true,
+  usageCount: true,
+  ratingCount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPromptTemplate = z.infer<typeof insertPromptTemplateSchema>;
+export type PromptTemplate = typeof promptTemplates.$inferSelect;
+
+// Prompt template ratings
+export const promptTemplateRatings = pgTable("prompt_template_ratings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  rating: integer("rating").notNull(), // 1-5
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_prompt_ratings_template").on(table.templateId),
+  index("idx_prompt_ratings_user").on(table.userId),
+]);
+
+export type PromptTemplateRating = typeof promptTemplateRatings.$inferSelect;
+
+// Integration connections (Zapier, Make.com, etc.)
+export const integrationTypes = ["zapier", "make", "n8n", "custom"] as const;
+export type IntegrationType = typeof integrationTypes[number];
+
+export const integrations = pgTable("integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  workspaceId: varchar("workspace_id"),
+  type: text("type").notNull(), // zapier, make, n8n, custom
+  name: text("name").notNull(),
+  description: text("description"),
+  apiKey: text("api_key").notNull(), // API key for this integration
+  webhookUrl: text("webhook_url"), // Webhook URL for receiving events
+  config: jsonb("config").default({}), // Integration-specific config
+  enabled: boolean("enabled").notNull().default(true),
+  lastUsed: timestamp("last_used"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_integrations_user").on(table.userId),
+  index("idx_integrations_type").on(table.type),
+  index("idx_integrations_api_key").on(table.apiKey),
+]);
+
+export const insertIntegrationSchema = createInsertSchema(integrations).omit({
+  id: true,
+  userId: true,
+  apiKey: true,
+  lastUsed: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertIntegration = z.infer<typeof insertIntegrationSchema>;
+export type Integration = typeof integrations.$inferSelect;
+
+// Integration events (for triggers)
+export const integrationEvents = pgTable("integration_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  integrationId: varchar("integration_id").notNull(),
+  eventType: text("event_type").notNull(), // new_message, model_created, etc.
+  eventData: jsonb("event_data").notNull(),
+  delivered: boolean("delivered").notNull().default(false),
+  deliveredAt: timestamp("delivered_at"),
+  error: text("error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_integration_events_integration").on(table.integrationId),
+  index("idx_integration_events_type").on(table.eventType),
+  index("idx_integration_events_delivered").on(table.delivered),
+]);
+
+export type IntegrationEvent = typeof integrationEvents.$inferSelect;
+export type InsertIntegrationEvent = typeof integrationEvents.$inferInsert;
+
+// Audio/Video assets for voice and video features
+export const mediaAssets = pgTable("media_assets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  conversationId: varchar("conversation_id"),
+  mediaType: text("media_type").notNull(), // "audio", "video"
+  contentType: text("content_type").notNull(), // MIME type
+  storageKey: text("storage_key").notNull(),
+  publicUrl: text("public_url").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  duration: integer("duration"), // Duration in seconds (for audio/video)
+  transcription: text("transcription"), // Transcribed text (for audio/video)
+  transcriptionLanguage: text("transcription_language"), // Language code (e.g., "en")
+  metadata: jsonb("metadata").default({}), // Additional metadata
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_media_assets_user").on(table.userId),
+  index("idx_media_assets_conversation").on(table.conversationId),
+  index("idx_media_assets_type").on(table.mediaType),
+]);
+
+export const insertMediaAssetSchema = createInsertSchema(mediaAssets).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type MediaAsset = typeof mediaAssets.$inferSelect;
+export type InsertMediaAsset = z.infer<typeof insertMediaAssetSchema>;
+
+// Multi-model workflow steps (extends existing workflow system)
+// Workflow steps now support: parallel execution, conditional logic, model chaining
+export type WorkflowStep = {
+  id: string;
+  type: "ai_chat" | "ai_image_generation" | "ai_image_analysis" | "condition" | "parallel" | "merge" | "delay";
+  modelId?: string; // For AI steps
+  prompt?: string; // For AI steps
+  condition?: {
+    field: string; // Field from previous step output
+    operator: "equals" | "contains" | "greater_than" | "less_than";
+    value: any;
+  };
+  parallelSteps?: string[]; // IDs of steps to run in parallel
+  delayMs?: number; // For delay steps
+  nextStepId?: string; // Next step after this one
+  onSuccessStepId?: string; // For conditional steps
+  onFailureStepId?: string; // For conditional steps
+  config?: Record<string, any>; // Additional step-specific config
+};
 
 // Fine-tuning jobs
 export const fineTuningJobs = pgTable("fine_tuning_jobs", {

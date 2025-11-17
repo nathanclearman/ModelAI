@@ -11,14 +11,32 @@ import { sendWelcomeEmail } from "./email/emailService";
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
+
+  const useDatabaseStore = Boolean(process.env.DATABASE_URL);
+  const sessionStore = useDatabaseStore
+    ? new pgStore({
+        conString: process.env.DATABASE_URL,
+        createTableIfMissing: false,
+        ttl: sessionTtl,
+        tableName: "sessions",
+      })
+    : new session.MemoryStore();
+
+  // Provide a safe default secret for local development
+  const sessionSecret =
+    (process.env.SESSION_SECRET && process.env.SESSION_SECRET.trim().length > 0
+      ? process.env.SESSION_SECRET
+      : "dev-dev-secret-please-change");
+
+  // Extra hard guard in case something above fails to set a value
+  const finalSecret = (sessionSecret && sessionSecret.length > 0) ? sessionSecret : "dev-dev-secret-please-change";
+
+  // Minimal startup diagnostics
+  // eslint-disable-next-line no-console
+  console.log(`[Auth] Session store: ${useDatabaseStore ? "Postgres (connect-pg-simple)" : "MemoryStore"}, secret length: ${finalSecret.length}`);
+
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: finalSecret,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,

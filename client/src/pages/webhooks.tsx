@@ -115,13 +115,15 @@ export default function Webhooks() {
   });
 
   const testMutation = useMutation({
-    mutationFn: async ({ id, testData }: { id: string; testData: any }) =>
-      apiRequest(`/api/webhooks/${id}/test`, "POST", { testData }),
-    onSuccess: (data) => {
+    mutationFn: async ({ id, testData }: { id: string; testData: any }) => {
+      const response = await apiRequest(`/api/webhooks/${id}/test`, "POST", { testData });
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
       setTestResult(data);
       toast({
         title: "Test Complete",
-        description: `Status: ${data.status} ${data.statusText}`,
+        description: `Status: ${data.status || 'Unknown'} ${data.statusText || ''}`,
         variant: data.success ? "default" : "destructive",
       });
     },
@@ -287,9 +289,9 @@ export default function Webhooks() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">Webhook Management</h1>
+          <h1 className="text-3xl font-bold" data-testid="text-page-title">ModelAI Webhook Management</h1>
           <p className="text-muted-foreground mt-1">
-            Configure, test, and reuse webhooks for integrating with external services
+            Configure, test, and reuse webhooks for integrating ModelAI with external services
           </p>
         </div>
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

@@ -22,9 +22,9 @@ export default function Templates() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-accent/10 text-accent-foreground text-sm font-medium mb-5">
             <span>Quick Start</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">Model Templates</h1>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">ModelAI Templates</h1>
           <p className="text-lg text-muted-foreground max-w-2xl">
-            Pre-configured models optimized for specific use cases
+            Pre-configured ModelAI models optimized for specific use cases
           </p>
         </div>
       </div>

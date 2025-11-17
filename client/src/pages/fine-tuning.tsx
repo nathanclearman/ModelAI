@@ -317,10 +317,10 @@ export default function FineTuningPage() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Brain className="h-8 w-8" />
-            Fine-Tuning
+            ModelAI Fine-Tuning
           </h1>
           <p className="text-muted-foreground mt-1">
-            Train custom AI models on your own data
+            Train custom ModelAI models on your own data
           </p>
         </div>
       </div>

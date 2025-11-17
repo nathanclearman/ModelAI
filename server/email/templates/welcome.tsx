@@ -23,10 +23,13 @@ export const WelcomeEmail = ({
   verificationToken = '',
 }: WelcomeEmailProps) => {
   // Use production domain if available, otherwise dev domain, fallback to localhost
-  const productionDomain = process.env.REPLIT_DOMAINS?.split(',')[0]; // First domain is the published one
-  const devDomain = process.env.REPLIT_DEV_DOMAIN;
-  const domain = productionDomain || devDomain;
-  const protocol = domain ? 'https' : 'http';
+  // Supports: DOMAIN, BASE_URL, REPLIT_DOMAINS, REPLIT_DEV_DOMAIN
+  const domain = 
+    process.env.DOMAIN || 
+    process.env.BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') ||
+    process.env.REPLIT_DOMAINS?.split(',')[0]?.trim() || 
+    process.env.REPLIT_DEV_DOMAIN;
+  const protocol = domain && !domain.includes('localhost') ? 'https' : 'http';
   const host = domain || 'localhost:5000';
   const verificationUrl = `${protocol}://${host}/verify-email?token=${verificationToken}`;
   

@@ -28,9 +28,9 @@ export default function UploadModel() {
   return (
     <div className="space-y-16">
       <div className="py-12">
-        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Import AI Models</h1>
+        <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">Import ModelAI Models</h1>
         <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-          Import OpenAI fine-tuned models or upload your custom pre-trained models
+          Import OpenAI fine-tuned models or upload your custom pre-trained models to ModelAI
         </p>
       </div>
 

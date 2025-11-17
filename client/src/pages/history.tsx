@@ -143,9 +143,9 @@ export default function History() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-accent/10 text-accent-foreground text-sm font-medium mb-5">
             <span>{conversations.length} Conversation{conversations.length !== 1 ? "s" : ""}</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">History</h1>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">ModelAI History</h1>
           <p className="text-lg text-muted-foreground max-w-2xl">
-            View and manage your conversation history
+            View and manage your ModelAI conversation history
           </p>
         </div>
       </div>

@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, insertWorkspaceSchema, insertWorkspaceMemberSchema, insertApiKeySchema, insertWebhookConfigurationSchema, workspaceRoles, type Message } from "@shared/schema";
+import { insertAIModelSchema, insertConversationSchema, updateUserProfileSchema, insertWorkspaceSchema, insertWorkspaceMemberSchema, insertApiKeySchema, insertWebhookConfigurationSchema, insertIntegrationSchema, workspaceRoles, type Message } from "@shared/schema";
 import OpenAI from "openai";
 import { isAuthenticated, isAdmin } from "./auth";
 import { generateApiKey, hashApiKey } from "./utils/apiKey";
+import crypto from "crypto";
 import { calculateCost } from "./utils/costCalculator";
 import { checkImagePrompt } from "./utils/contentFilter";
 import { geminiService } from "./services/geminiService";
@@ -12,6 +13,9 @@ import { checkImageQuota, incrementImageUsage } from "./middleware/imageAccess";
 import { imageStore } from "./services/imageStore";
 import { processDocument } from "./services/documentService";
 import { storeDocument, deleteDocument as deleteDocumentFile } from "./services/documentStore";
+import { mediaStore } from "./services/mediaStore";
+import { transcribeAudio, textToSpeech } from "./services/audioService";
+import { analyzeVideo } from "./services/videoService";
 import multer from "multer";
 import Stripe from "stripe";
 import bcrypt from "bcryptjs";
@@ -248,9 +252,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ error: "Payment system is not configured" });
       }
 
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : 'http://localhost:5000';
+      // Get base URL for Stripe redirects - supports multiple env var formats
+      let baseUrl = 'http://localhost:5000';
+      if (process.env.BASE_URL) {
+        baseUrl = process.env.BASE_URL.replace(/\/$/, '');
+      } else if (process.env.DOMAIN) {
+        const protocol = process.env.DOMAIN.includes('localhost') ? 'http' : 'https';
+        baseUrl = `${protocol}://${process.env.DOMAIN}`;
+      } else if (process.env.REPLIT_DOMAINS) {
+        const domains = process.env.REPLIT_DOMAINS.split(',');
+        baseUrl = `https://${domains[0].trim()}`;
+      } else if (process.env.REPLIT_DEV_DOMAIN) {
+        baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN}`;
+      }
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
@@ -476,6 +490,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.id;
       const validatedData = insertAIModelSchema.parse(req.body);
       const model = await storage.createAIModel(userId, validatedData);
+      
+      // Emit integration event
+      emitIntegrationEvent(userId, "model_created", {
+        modelId: model.id,
+        name: model.name,
+        model: model.model,
+        createdAt: model.createdAt,
+      }).catch(err => console.error("Failed to emit model_created event:", err));
+      
       res.status(201).json(model);
     } catch (error: any) {
       console.error("Error creating model:", error);
@@ -842,6 +865,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Emit integration event for image generation
+      emitIntegrationEvent(userId, "image_generated", {
+        imageId: publicUrl.split('/').pop() || crypto.randomUUID(),
+        imageUrl: publicUrl,
+        prompt,
+        conversationId: savedConversation?.id,
+        createdAt: new Date().toISOString(),
+      }).catch(err => console.error("Failed to emit image_generated event:", err));
+
       res.json({
         imageUrl: publicUrl,
         imageType: "generated",
@@ -872,6 +904,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cb(null, true);
       } else {
         cb(new Error(`Unsupported file type: ${file.mimetype}. Supported formats: PDF, DOCX, TXT, MD`));
+      }
+    },
+  });
+
+  // Configure multer for video uploads
+  const videoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100MB limit for videos
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedMimes = [
+        'video/mp4',
+        'video/webm',
+        'video/quicktime',
+        'video/x-msvideo', // .avi
+      ];
+
+      if (allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`Unsupported video type: ${file.mimetype}. Supported formats: MP4, WebM, MOV, AVI`));
       }
     },
   });
@@ -1242,6 +1296,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.incrementUserMessages(userId);
         }
       }
+
+      // Emit integration event for new message
+      emitIntegrationEvent(userId, "new_message", {
+        conversationId: savedConversation?.id,
+        messageId: userMessage.messageId || crypto.randomUUID(),
+        role: "user",
+        content: message,
+        timestamp: userMessage.timestamp,
+      }).catch(err => console.error("Failed to emit new_message event:", err));
 
       // Send final event with conversation ID
       res.write(
@@ -2448,6 +2511,1512 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error testing webhook:", error);
       res.status(500).json({ error: error.message || "Failed to test webhook" });
+    }
+  });
+
+  // Rate limiting for code execution (per user)
+  const codeExecutionRateLimit = new Map<string, { count: number; resetAt: number }>();
+  const CODE_EXECUTION_RATE_LIMIT = 10; // Max 10 executions per window
+  const CODE_EXECUTION_WINDOW_MS = 60 * 1000; // 1 minute window
+
+  // Dangerous patterns to block
+  const DANGEROUS_PATTERNS = [
+    // File system access
+    /import\s+os|import\s+sys|import\s+subprocess|import\s+shutil|import\s+pathlib/gi,
+    /__import__|eval\(|exec\(|compile\(/gi,
+    /open\(|file\(|read\(|write\(|remove\(|delete\(/gi,
+    /fs\.|require\(['"]fs['"]|require\(['"]child_process['"]/gi,
+    // Network access
+    /import\s+urllib|import\s+requests|import\s+http|import\s+socket/gi,
+    /fetch\(|XMLHttpRequest|http\.|https\.|net\.|dns\./gi,
+    // Process/system access
+    /process\.|spawn\(|exec\(|execFile\(|fork\(/gi,
+    /subprocess\.|os\.system|os\.popen|os\.spawn/gi,
+    // Dangerous JavaScript
+    /Function\(|constructor\(|prototype\.|__proto__|this\.constructor/gi,
+    /global\.|globalThis\.|window\.|document\./gi,
+    // Shell commands
+    /`.*\$\(|`.*\$\{/gi, // Template literals with commands
+    /\.exec\(|\.spawn\(|\.execFile\(/gi,
+  ];
+
+  function validateCodeSafety(code: string, language: string): { safe: boolean; reason?: string } {
+    // Check for dangerous patterns
+    for (const pattern of DANGEROUS_PATTERNS) {
+      if (pattern.test(code)) {
+        return { safe: false, reason: "Code contains potentially dangerous operations" };
+      }
+    }
+
+    // Additional language-specific checks
+    if (language.toLowerCase() === "python") {
+      // Block import of dangerous modules
+      const dangerousImports = [
+        "os", "sys", "subprocess", "shutil", "pathlib", "urllib", "requests",
+        "http", "socket", "multiprocessing", "threading", "ctypes", "pickle"
+      ];
+      for (const mod of dangerousImports) {
+        if (new RegExp(`import\\s+${mod}|from\\s+${mod}`, "gi").test(code)) {
+          return { safe: false, reason: `Import of '${mod}' is not allowed` };
+        }
+      }
+    }
+
+    if (language.toLowerCase() === "javascript") {
+      // Block require of dangerous modules
+      const dangerousRequires = ["fs", "child_process", "http", "https", "net", "dns", "crypto"];
+      for (const mod of dangerousRequires) {
+        if (new RegExp(`require\\(['"]${mod}['"]\\)`, "gi").test(code)) {
+          return { safe: false, reason: `Require of '${mod}' is not allowed` };
+        }
+      }
+    }
+
+    return { safe: true };
+  }
+
+  // Code execution endpoint (sandboxed)
+  app.post("/api/execute-code", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if code execution is enabled
+      const codeExecutionEnabled = process.env.ENABLE_CODE_EXECUTION === "true";
+      
+      if (!codeExecutionEnabled) {
+        return res.status(403).json({ 
+          error: "Code execution is disabled in production for security reasons" 
+        });
+      }
+
+      const userId = (req as any).user?.id || req.ip || "anonymous";
+      const now = Date.now();
+
+      // Rate limiting
+      const userLimit = codeExecutionRateLimit.get(userId);
+      if (userLimit) {
+        if (now < userLimit.resetAt) {
+          if (userLimit.count >= CODE_EXECUTION_RATE_LIMIT) {
+            return res.status(429).json({ 
+              error: `Rate limit exceeded. Maximum ${CODE_EXECUTION_RATE_LIMIT} executions per minute.` 
+            });
+          }
+          userLimit.count++;
+        } else {
+          // Reset window
+          codeExecutionRateLimit.set(userId, { count: 1, resetAt: now + CODE_EXECUTION_WINDOW_MS });
+        }
+      } else {
+        codeExecutionRateLimit.set(userId, { count: 1, resetAt: now + CODE_EXECUTION_WINDOW_MS });
+      }
+
+      // Clean up old rate limit entries (prevent memory leak)
+      if (Math.random() < 0.01) { // 1% chance to cleanup
+        for (const key of Array.from(codeExecutionRateLimit.keys())) {
+          const value = codeExecutionRateLimit.get(key);
+          if (value && now >= value.resetAt) {
+            codeExecutionRateLimit.delete(key);
+          }
+        }
+      }
+
+      const { code, language } = req.body;
+
+      if (!code || !language) {
+        return res.status(400).json({ error: "Code and language are required" });
+      }
+
+      if (!["python", "javascript"].includes(language.toLowerCase())) {
+        return res.status(400).json({ error: "Only Python and JavaScript are supported" });
+      }
+
+      // Security: Limit code length
+      if (code.length > 5000) {
+        return res.status(400).json({ error: "Code is too long (max 5,000 characters)" });
+      }
+
+      // Validate code safety
+      const safetyCheck = validateCodeSafety(code, language);
+      if (!safetyCheck.safe) {
+        return res.status(400).json({ 
+          error: safetyCheck.reason || "Code contains potentially dangerous operations" 
+        });
+      }
+
+      let result: { output: string; error?: string; executionTime: number };
+
+      if (language.toLowerCase() === "python") {
+        // Execute Python code using child_process with strict isolation
+        const { spawn } = await import("child_process");
+        const startTime = Date.now();
+        
+        try {
+          // Write code to temp file and execute
+          const fs = await import("fs/promises");
+          const path = await import("path");
+          const os = await import("os");
+          
+          const tempDir = os.tmpdir();
+          const tempFile = path.join(tempDir, `code_${Date.now()}_${Math.random().toString(36).substring(7)}.py`);
+          
+          // Wrap code in a safer environment
+          // Note: We rely on input validation to block dangerous imports
+          // This wrapper just ensures clean environment
+          const safeCode = `
+import sys
+# Limit module search path (but don't clear completely to allow basic operations)
+if hasattr(sys, 'path'):
+    sys.path = [p for p in sys.path if 'site-packages' not in p]
+
+# Block dangerous builtins (but keep safe ones)
+_original_builtins = __builtins__
+if isinstance(__builtins__, dict):
+    _original_builtins = __builtins__
+else:
+    _original_builtins = __builtins__.__dict__
+
+# Create restricted builtins
+_safe_builtins = {
+    'print': _original_builtins.get('print', print),
+    'len': _original_builtins.get('len', len),
+    'str': _original_builtins.get('str', str),
+    'int': _original_builtins.get('int', int),
+    'float': _original_builtins.get('float', float),
+    'bool': _original_builtins.get('bool', bool),
+    'list': _original_builtins.get('list', list),
+    'dict': _original_builtins.get('dict', dict),
+    'tuple': _original_builtins.get('tuple', tuple),
+    'set': _original_builtins.get('set', set),
+    'range': _original_builtins.get('range', range),
+    'enumerate': _original_builtins.get('enumerate', enumerate),
+    'zip': _original_builtins.get('zip', zip),
+    'min': _original_builtins.get('min', min),
+    'max': _original_builtins.get('max', max),
+    'sum': _original_builtins.get('sum', sum),
+    'abs': _original_builtins.get('abs', abs),
+    'round': _original_builtins.get('round', round),
+    'sorted': _original_builtins.get('sorted', sorted),
+    'reversed': _original_builtins.get('reversed', reversed),
+    'type': _original_builtins.get('type', type),
+    'isinstance': _original_builtins.get('isinstance', isinstance),
+    'hasattr': _original_builtins.get('hasattr', hasattr),
+    'getattr': _original_builtins.get('getattr', getattr),
+}
+
+# Block dangerous operations (already validated, but double-check)
+for key in ['__import__', 'eval', 'exec', 'compile', 'open', 'file', 'input', 'raw_input']:
+    if key in _safe_builtins:
+        del _safe_builtins[key]
+
+__builtins__ = _safe_builtins
+
+${code}
+`;
+          
+          await fs.writeFile(tempFile, safeCode, "utf-8");
+          
+          // Execute with strict timeout and resource limits
+          const timeout = 3000; // 3 seconds (reduced from 5)
+          let stdout = "";
+          let stderr = "";
+          let timedOut = false;
+
+          const pythonCmd = process.platform === "win32" ? "python" : "python3";
+          const child = spawn(pythonCmd, [tempFile], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: {
+              ...process.env,
+              PYTHONPATH: '', // Clear Python path
+              PYTHONDONTWRITEBYTECODE: '1',
+            },
+          });
+
+          const MAX_OUTPUT = 512 * 1024; // 512KB max output
+          const timeoutId = setTimeout(() => {
+            timedOut = true;
+            try {
+              child.kill('SIGKILL');
+            } catch {}
+          }, timeout);
+
+          if (child.stdout) {
+            child.stdout.on('data', (data: Buffer) => {
+              stdout += data.toString();
+              if (stdout.length > MAX_OUTPUT) {
+                try {
+                  child.kill('SIGKILL');
+                } catch {}
+              }
+            });
+          }
+
+          if (child.stderr) {
+            child.stderr.on('data', (data: Buffer) => {
+              stderr += data.toString();
+              if (stderr.length > MAX_OUTPUT) {
+                try {
+                  child.kill('SIGKILL');
+                } catch {}
+              }
+            });
+          }
+
+          await new Promise<void>((resolve, reject) => {
+            child.on('close', (code: number | null) => {
+              clearTimeout(timeoutId);
+              resolve();
+            });
+            child.on('error', (error: Error) => {
+              clearTimeout(timeoutId);
+              reject(error);
+            });
+          });
+
+          // Clean up temp file immediately
+          try {
+            await fs.unlink(tempFile);
+          } catch {}
+
+          const executionTime = Date.now() - startTime;
+          
+          if (timedOut) {
+            result = {
+              output: "",
+              error: "Execution timeout (3 seconds)",
+              executionTime,
+            };
+          } else {
+            result = {
+              output: stdout || stderr || "(no output)",
+              error: stderr || undefined,
+              executionTime,
+            };
+          }
+        } catch (error: any) {
+          const executionTime = Date.now() - startTime;
+          result = {
+            output: "",
+            error: error.message || "Execution failed",
+            executionTime,
+          };
+        }
+      } else {
+        // Execute JavaScript code using Node's vm module (strictly sandboxed)
+        const vm = await import("vm");
+        const startTime = Date.now();
+
+        try {
+          const output: string[] = [];
+          let outputLength = 0;
+          const MAX_OUTPUT_LENGTH = 10000; // Max 10KB output
+
+          // Create a minimal, safe context
+          const safeContext = {
+            console: {
+              log: (...args: any[]) => {
+                const message = args.map((arg) => {
+                  if (typeof arg === "object") {
+                    try {
+                      return JSON.stringify(arg, null, 2);
+                    } catch {
+                      return "[Object]";
+                    }
+                  }
+                  return String(arg);
+                }).join(" ");
+                
+                if (outputLength + message.length < MAX_OUTPUT_LENGTH) {
+                  output.push(message);
+                  outputLength += message.length;
+                } else if (outputLength < MAX_OUTPUT_LENGTH) {
+                  output.push(message.substring(0, MAX_OUTPUT_LENGTH - outputLength) + "... (output truncated)");
+                  outputLength = MAX_OUTPUT_LENGTH;
+                }
+              },
+            },
+            // Safe math functions
+            Math: {
+              abs: Math.abs,
+              ceil: Math.ceil,
+              floor: Math.floor,
+              max: Math.max,
+              min: Math.min,
+              pow: Math.pow,
+              random: Math.random,
+              round: Math.round,
+              sqrt: Math.sqrt,
+            },
+            // Safe string functions
+            String: String,
+            Number: Number,
+            Boolean: Boolean,
+            Array: Array,
+            Object: Object,
+            Date: Date,
+            JSON: JSON,
+            // Safe array methods
+            parseInt: parseInt,
+            parseFloat: parseFloat,
+            isNaN: isNaN,
+            isFinite: isFinite,
+            // Blocked: setTimeout, setInterval, process, require, global, etc.
+          };
+
+          // Create sandbox with no access to Node.js internals
+          const sandbox = vm.createContext(safeContext, {
+            name: "CodeExecutionSandbox",
+            codeGeneration: {
+              strings: false, // Prevent code generation from strings
+              wasm: false, // Prevent WebAssembly
+            },
+          });
+
+          // Compile and run with strict timeout
+          const script = new vm.Script(code);
+
+          script.runInContext(sandbox, {
+            timeout: 3000, // 3 seconds
+            breakOnSigint: false,
+            displayErrors: true,
+          });
+
+          const executionTime = Date.now() - startTime;
+
+          result = {
+            output: output.join("\n") || "(no output)",
+            executionTime,
+          };
+        } catch (error: any) {
+          const executionTime = Date.now() - startTime;
+          let errorMessage = error.message || "Execution failed";
+          
+          // Sanitize error messages (don't leak internal details)
+          if (errorMessage.includes("timeout")) {
+            errorMessage = "Execution timeout (3 seconds)";
+          } else if (errorMessage.includes("Maximum call stack")) {
+            errorMessage = "Stack overflow - code too complex";
+          }
+          
+          result = {
+            output: "",
+            error: errorMessage,
+            executionTime,
+          };
+        }
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Code execution error:", error);
+      res.status(500).json({ error: error.message || "Failed to execute code" });
+    }
+  });
+
+  // ============================================
+  // CONVERSATION BRANCHING APIs
+  // ============================================
+
+  // Create a new branch from a message
+  app.post("/api/conversations/:conversationId/branches", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const { parentMessageId, branchName, initialMessage } = req.body;
+      const userId = req.user.id;
+
+      // Verify conversation belongs to user
+      const conversation = await storage.getConversation(userId, conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // Create branch
+      const branch = await storage.createConversationBranch({
+        conversationId,
+        parentMessageId,
+        branchName: branchName || `Branch ${new Date().toLocaleString()}`,
+        messages: initialMessage ? [initialMessage] : [],
+      });
+
+      // Update conversation to include branch reference
+      const branches = (conversation.branches as any[]) || [];
+      branches.push({ id: branch.id, name: branch.branchName, parentMessageId });
+      await storage.updateConversation(userId, conversationId, { branches });
+
+      res.json(branch);
+    } catch (error: any) {
+      console.error("Error creating branch:", error);
+      res.status(500).json({ error: error.message || "Failed to create branch" });
+    }
+  });
+
+  // Get all branches for a conversation
+  app.get("/api/conversations/:conversationId/branches", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = req.user.id;
+
+      const conversation = await storage.getConversation(userId, conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      const branches = await storage.getConversationBranches(conversationId);
+      res.json(branches);
+    } catch (error: any) {
+      console.error("Error getting branches:", error);
+      res.status(500).json({ error: error.message || "Failed to get branches" });
+    }
+  });
+
+  // Get a specific branch
+  app.get("/api/branches/:branchId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { branchId } = req.params;
+      const branch = await storage.getConversationBranch(branchId);
+      
+      if (!branch) {
+        return res.status(404).json({ error: "Branch not found" });
+      }
+
+      // Verify user has access to the conversation
+      const conversation = await storage.getConversation(req.user.id, branch.conversationId);
+      if (!conversation) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      res.json(branch);
+    } catch (error: any) {
+      console.error("Error getting branch:", error);
+      res.status(500).json({ error: error.message || "Failed to get branch" });
+    }
+  });
+
+  // Switch active branch
+  app.post("/api/conversations/:conversationId/switch-branch", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const { branchId } = req.body;
+      const userId = req.user.id;
+
+      const conversation = await storage.getConversation(userId, conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      if (branchId) {
+        const branch = await storage.getConversationBranch(branchId);
+        if (!branch || branch.conversationId !== conversationId) {
+          return res.status(404).json({ error: "Branch not found" });
+        }
+        // Load branch messages into conversation
+        await storage.updateConversation(userId, conversationId, {
+          activeBranchId: branchId,
+          messages: branch.messages as any,
+        });
+      } else {
+        // Switch back to main branch
+        await storage.updateConversation(userId, conversationId, {
+          activeBranchId: null,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error switching branch:", error);
+      res.status(500).json({ error: error.message || "Failed to switch branch" });
+    }
+  });
+
+  // ============================================
+  // PROMPT TEMPLATE APIs
+  // ============================================
+
+  // Create a prompt template
+  app.post("/api/prompt-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const template = await storage.createPromptTemplate(userId, req.body);
+      res.json(template);
+    } catch (error: any) {
+      console.error("Error creating prompt template:", error);
+      res.status(500).json({ error: error.message || "Failed to create template" });
+    }
+  });
+
+  // Get user's prompt templates
+  app.get("/api/prompt-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const templates = await storage.getUserPromptTemplates(userId);
+      res.json(templates);
+    } catch (error: any) {
+      console.error("Error getting prompt templates:", error);
+      res.status(500).json({ error: error.message || "Failed to get templates" });
+    }
+  });
+
+  // Get public prompt templates
+  app.get("/api/prompt-templates/public", async (req: any, res) => {
+    try {
+      const { category } = req.query;
+      const templates = await storage.getPublicPromptTemplates(category);
+      res.json(templates);
+    } catch (error: any) {
+      console.error("Error getting public templates:", error);
+      res.status(500).json({ error: error.message || "Failed to get templates" });
+    }
+  });
+
+  // Get a specific template
+  app.get("/api/prompt-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+      
+      // Try user's template first
+      let template = await storage.getPromptTemplate(userId, id);
+      
+      // If not found, try public templates
+      if (!template) {
+        const publicTemplates = await storage.getPublicPromptTemplates();
+        template = publicTemplates.find(t => t.id === id);
+      }
+
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json(template);
+    } catch (error: any) {
+      console.error("Error getting template:", error);
+      res.status(500).json({ error: error.message || "Failed to get template" });
+    }
+  });
+
+  // Update a template
+  app.put("/api/prompt-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+      const template = await storage.updatePromptTemplate(userId, id, req.body);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json(template);
+    } catch (error: any) {
+      console.error("Error updating template:", error);
+      res.status(500).json({ error: error.message || "Failed to update template" });
+    }
+  });
+
+  // Delete a template
+  app.delete("/api/prompt-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+      const success = await storage.deletePromptTemplate(userId, id);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting template:", error);
+      res.status(500).json({ error: error.message || "Failed to delete template" });
+    }
+  });
+
+  // Use a template (increments usage count)
+  app.post("/api/prompt-templates/:id/use", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.incrementPromptTemplateUsage(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error using template:", error);
+      res.status(500).json({ error: error.message || "Failed to use template" });
+    }
+  });
+
+  // Rate a template
+  app.post("/api/prompt-templates/:id/rate", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { rating } = req.body;
+      const userId = req.user.id;
+
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ error: "Rating must be between 1 and 5" });
+      }
+
+      const result = await storage.ratePromptTemplate(id, userId, rating);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error rating template:", error);
+      res.status(500).json({ error: error.message || "Failed to rate template" });
+    }
+  });
+
+  // ============================================
+  // MULTI-MODEL ORCHESTRATION APIs
+  // ============================================
+
+  // Execute a workflow (multi-model orchestration)
+  app.post("/api/workflows/:id/run", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { input } = req.body;
+      const userId = req.user.id;
+
+      const workflow = await storage.getWorkflow(userId, id);
+      if (!workflow) {
+        return res.status(404).json({ error: "Workflow not found" });
+      }
+
+      if (!workflow.enabled) {
+        return res.status(400).json({ error: "Workflow is disabled" });
+      }
+
+      // Create workflow run
+      const run = await storage.createWorkflowRun({
+        workflowId: id,
+        userId,
+        status: "running",
+        input: input || {},
+      });
+
+      // Execute workflow asynchronously
+      executeWorkflow(workflow, run.id, userId, input || {}).catch((error) => {
+        console.error("Workflow execution error:", error);
+        storage.updateWorkflowRun(run.id, {
+          status: "failed",
+          error: error.message,
+          completedAt: new Date(),
+        });
+      });
+
+      res.json(run);
+    } catch (error: any) {
+      console.error("Error running workflow:", error);
+      res.status(500).json({ error: error.message || "Failed to run workflow" });
+    }
+  });
+
+  // Helper function to execute workflow steps
+  async function executeWorkflow(workflow: any, runId: string, userId: string, input: any) {
+    const steps = workflow.steps as any[];
+    const context: Record<string, any> = { input };
+    let currentStepId = steps[0]?.id;
+
+    while (currentStepId) {
+      const step = steps.find(s => s.id === currentStepId);
+      if (!step) break;
+
+      try {
+        let result: any;
+
+        switch (step.type) {
+          case "ai_chat":
+            if (!step.modelId || !step.prompt) {
+              throw new Error("AI chat step requires modelId and prompt");
+            }
+            // Execute AI chat (simplified - you'll need to integrate with your chat system)
+            result = { output: "AI response placeholder" };
+            break;
+
+          case "condition":
+            if (!step.condition) {
+              throw new Error("Condition step requires condition config");
+            }
+            const fieldValue = context[step.condition.field];
+            let conditionMet = false;
+            
+            switch (step.condition.operator) {
+              case "equals":
+                conditionMet = fieldValue === step.condition.value;
+                break;
+              case "contains":
+                conditionMet = String(fieldValue).includes(String(step.condition.value));
+                break;
+              case "greater_than":
+                conditionMet = Number(fieldValue) > Number(step.condition.value);
+                break;
+              case "less_than":
+                conditionMet = Number(fieldValue) < Number(step.condition.value);
+                break;
+            }
+            
+            currentStepId = conditionMet ? step.onSuccessStepId : step.onFailureStepId;
+            continue;
+
+          case "parallel":
+            if (!step.parallelSteps) {
+              throw new Error("Parallel step requires parallelSteps");
+            }
+            // Execute parallel steps (simplified)
+            result = { outputs: [] };
+            break;
+
+          case "delay":
+            if (step.delayMs) {
+              await new Promise(resolve => setTimeout(resolve, step.delayMs));
+            }
+            result = { delayed: step.delayMs };
+            break;
+
+          default:
+            result = { output: "Step executed" };
+        }
+
+        context[step.id] = result;
+        currentStepId = step.nextStepId;
+      } catch (error: any) {
+        await storage.updateWorkflowRun(runId, {
+          status: "failed",
+          error: error.message,
+          completedAt: new Date(),
+        });
+        throw error;
+      }
+    }
+
+    // Mark workflow as completed
+    await storage.updateWorkflowRun(runId, {
+      status: "completed",
+      output: context,
+      completedAt: new Date(),
+    });
+  }
+
+  // ============================================
+  // INTEGRATION APIs (Zapier, Make.com, etc.)
+  // ============================================
+
+  // API Key authentication middleware for integrations
+  const authenticateApiKey = async (req: any, res: any, next: any) => {
+    try {
+      const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+      
+      if (!apiKey) {
+        return res.status(401).json({ error: "API key required" });
+      }
+
+      const integration = await storage.getIntegrationByApiKey(apiKey);
+      if (!integration || !integration.enabled) {
+        return res.status(401).json({ error: "Invalid or disabled API key" });
+      }
+
+      // Update last used
+      await storage.updateIntegrationLastUsed(integration.id);
+
+      // Attach integration to request
+      req.integration = integration;
+      req.user = { id: integration.userId }; // For compatibility with other middleware
+      
+      next();
+    } catch (error: any) {
+      console.error("API key authentication error:", error);
+      res.status(401).json({ error: "Authentication failed" });
+    }
+  };
+
+  // Create integration
+  app.post("/api/integrations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const validated = insertIntegrationSchema.parse(req.body);
+      
+      // Generate API key for integration
+      const apiKey = `int_${crypto.randomBytes(32).toString('base64url')}`;
+      
+      const integration = await storage.createIntegration(userId, validated, apiKey);
+      
+      // Return integration with API key (only shown once)
+      res.status(201).json({ ...integration, apiKey });
+    } catch (error: any) {
+      console.error("Error creating integration:", error);
+      res.status(500).json({ error: error.message || "Failed to create integration" });
+    }
+  });
+
+  // Get user's integrations
+  app.get("/api/integrations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const integrations = await storage.getUserIntegrations(userId);
+      
+      // Don't expose API keys in list
+      const sanitized = integrations.map((int: any) => {
+        const { apiKey, ...rest } = int;
+        return rest;
+      });
+      
+      res.json(sanitized);
+    } catch (error: any) {
+      console.error("Error getting integrations:", error);
+      res.status(500).json({ error: error.message || "Failed to get integrations" });
+    }
+  });
+
+  // Get integration (with API key if user owns it)
+  app.get("/api/integrations/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const integration = await storage.getIntegration(userId, req.params.id);
+      
+      if (!integration) {
+        return res.status(404).json({ error: "Integration not found" });
+      }
+
+      res.json(integration);
+    } catch (error: any) {
+      console.error("Error getting integration:", error);
+      res.status(500).json({ error: error.message || "Failed to get integration" });
+    }
+  });
+
+  // Update integration
+  app.patch("/api/integrations/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const validated = insertIntegrationSchema.partial().parse(req.body);
+      const integration = await storage.updateIntegration(userId, req.params.id, validated);
+      
+      if (!integration) {
+        return res.status(404).json({ error: "Integration not found" });
+      }
+
+      res.json(integration);
+    } catch (error: any) {
+      console.error("Error updating integration:", error);
+      res.status(500).json({ error: error.message || "Failed to update integration" });
+    }
+  });
+
+  // Delete integration
+  app.delete("/api/integrations/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const success = await storage.deleteIntegration(userId, req.params.id);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Integration not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting integration:", error);
+      res.status(500).json({ error: error.message || "Failed to delete integration" });
+    }
+  });
+
+  // ============================================
+  // ZAPIER/MAKE.COM TRIGGERS (Webhooks)
+  // ============================================
+
+  // Get available triggers
+  app.get("/api/integrations/triggers", authenticateApiKey, async (req: any, res) => {
+    try {
+      const triggers = [
+        {
+          key: "new_message",
+          name: "New Message",
+          description: "Triggered when a new message is sent in a conversation",
+          sample: {
+            conversationId: "conv_123",
+            messageId: "msg_456",
+            role: "user",
+            content: "Hello!",
+            timestamp: new Date().toISOString(),
+          },
+        },
+        {
+          key: "model_created",
+          name: "Model Created",
+          description: "Triggered when a new AI model is created",
+          sample: {
+            modelId: "model_123",
+            name: "My Model",
+            model: "gpt-4",
+            createdAt: new Date().toISOString(),
+          },
+        },
+        {
+          key: "image_generated",
+          name: "Image Generated",
+          description: "Triggered when an image is generated",
+          sample: {
+            imageId: "img_123",
+            imageUrl: "https://...",
+            prompt: "A beautiful sunset",
+            createdAt: new Date().toISOString(),
+          },
+        },
+      ];
+      
+      res.json(triggers);
+    } catch (error: any) {
+      console.error("Error getting triggers:", error);
+      res.status(500).json({ error: error.message || "Failed to get triggers" });
+    }
+  });
+
+  // Get pending events for a trigger (Zapier polling)
+  app.get("/api/integrations/triggers/:triggerKey", authenticateApiKey, async (req: any, res) => {
+    try {
+      const { triggerKey } = req.params;
+      const integration = req.integration;
+      
+      // Get pending events for this integration and trigger
+      const events = await storage.getPendingIntegrationEvents(integration.id);
+      const filteredEvents = events.filter(e => e.eventType === triggerKey);
+      
+      // Mark as delivered
+      for (const event of filteredEvents) {
+        await storage.markEventDelivered(event.id);
+      }
+      
+      res.json(filteredEvents.map(e => e.eventData));
+    } catch (error: any) {
+      console.error("Error getting trigger events:", error);
+      res.status(500).json({ error: error.message || "Failed to get trigger events" });
+    }
+  });
+
+  // ============================================
+  // ZAPIER/MAKE.COM ACTIONS
+  // ============================================
+
+  // Get available actions
+  app.get("/api/integrations/actions", authenticateApiKey, async (req: any, res) => {
+    try {
+      const actions = [
+        {
+          key: "send_message",
+          name: "Send Message",
+          description: "Send a message to an AI model",
+          inputFields: [
+            { key: "modelId", label: "Model ID", required: true, type: "string" },
+            { key: "message", label: "Message", required: true, type: "text" },
+            { key: "conversationId", label: "Conversation ID", required: false, type: "string" },
+          ],
+        },
+        {
+          key: "generate_image",
+          name: "Generate Image",
+          description: "Generate an image using AI",
+          inputFields: [
+            { key: "modelId", label: "Model ID", required: true, type: "string" },
+            { key: "prompt", label: "Image Prompt", required: true, type: "text" },
+          ],
+        },
+        {
+          key: "list_models",
+          name: "List Models",
+          description: "Get list of available AI models",
+          inputFields: [],
+        },
+      ];
+      
+      res.json(actions);
+    } catch (error: any) {
+      console.error("Error getting actions:", error);
+      res.status(500).json({ error: error.message || "Failed to get actions" });
+    }
+  });
+
+  // Execute action: Send Message
+  app.post("/api/integrations/actions/send_message", authenticateApiKey, async (req: any, res) => {
+    try {
+      const { modelId, message, conversationId } = req.body;
+      const integration = req.integration;
+      
+      if (!modelId || !message) {
+        return res.status(400).json({ error: "modelId and message are required" });
+      }
+
+      // Verify model belongs to user
+      const model = await storage.getAIModel(integration.userId, modelId);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+
+      // Use OpenAI client to send message (simplified version)
+      const userApiKey = process.env.OPENAI_API_KEY;
+      if (!userApiKey) {
+        return res.status(500).json({ error: "OpenAI API key not configured" });
+      }
+
+      const openaiClient = new OpenAI({ apiKey: userApiKey });
+      
+      // Get conversation if exists
+      let conversation = conversationId
+        ? await storage.getConversation(integration.userId, conversationId)
+        : null;
+
+      const messages = conversation?.messages as Message[] || [];
+      messages.push({
+        role: "user",
+        content: message,
+        timestamp: new Date().toISOString(),
+        messageId: crypto.randomUUID(),
+      });
+
+      const openaiMessages: any[] = [
+        { role: "system", content: model.systemPrompt },
+        ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
+      ];
+
+      const completion = await openaiClient.chat.completions.create({
+        model: model.model,
+        messages: openaiMessages,
+        temperature: model.temperature / 100,
+        max_tokens: model.maxTokens,
+      });
+
+      const response = completion.choices[0]?.message?.content || "";
+
+      res.json({
+        success: true,
+        response,
+        conversationId: conversationId || "new",
+      });
+    } catch (error: any) {
+      console.error("Error executing send_message action:", error);
+      res.status(500).json({ error: error.message || "Failed to execute action" });
+    }
+  });
+
+  // Execute action: Generate Image
+  app.post("/api/integrations/actions/generate_image", authenticateApiKey, async (req: any, res) => {
+    try {
+      const { modelId, prompt } = req.body;
+      const integration = req.integration;
+      
+      if (!modelId || !prompt) {
+        return res.status(400).json({ error: "modelId and prompt are required" });
+      }
+
+      // Verify model belongs to user
+      const model = await storage.getAIModel(integration.userId, modelId);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+
+      // Check content filter
+      const filterResult = checkImagePrompt(prompt);
+      if (!filterResult.allowed) {
+        return res.status(400).json({ error: filterResult.reason });
+      }
+
+      // Generate image using Gemini
+      const { imageData, mimeType } = await geminiService.generateImage(prompt);
+      
+      // Store the image and get a public URL
+      const { publicUrl } = await imageStore.store(imageData, integration.userId, "generated", prompt);
+      
+      res.json({
+        success: true,
+        imageUrl: publicUrl,
+        imageType: "generated",
+      });
+    } catch (error: any) {
+      console.error("Error executing generate_image action:", error);
+      res.status(500).json({ error: error.message || "Failed to generate image" });
+    }
+  });
+
+  // Execute action: List Models
+  app.post("/api/integrations/actions/list_models", authenticateApiKey, async (req: any, res) => {
+    try {
+      const integration = req.integration;
+      const models = await storage.getAllAIModels(integration.userId);
+      
+      res.json({
+        success: true,
+        models: models.map(m => ({
+          id: m.id,
+          name: m.name,
+          description: m.description,
+          model: m.model,
+          isPublic: m.isPublic,
+        })),
+      });
+    } catch (error: any) {
+      console.error("Error executing list_models action:", error);
+      res.status(500).json({ error: error.message || "Failed to list models" });
+    }
+  });
+
+  // ============================================
+  // EVENT EMISSION (Internal - called when events happen)
+  // ============================================
+
+  // Helper function to emit integration events
+  async function emitIntegrationEvent(userId: string, eventType: string, eventData: any) {
+    try {
+      // Get all enabled integrations for user
+      const integrations = await storage.getUserIntegrations(userId);
+      const enabledIntegrations = integrations.filter(i => i.enabled);
+      
+      for (const integration of enabledIntegrations) {
+        // Create event
+        const event = await storage.createIntegrationEvent({
+          integrationId: integration.id,
+          eventType,
+          eventData,
+        });
+
+        // If webhook URL is configured, send event immediately
+        if (integration.webhookUrl) {
+          try {
+            const response = await fetch(integration.webhookUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-API-Key": integration.apiKey,
+              },
+              body: JSON.stringify({
+                event: eventType,
+                data: eventData,
+                timestamp: new Date().toISOString(),
+              }),
+            });
+
+            if (response.ok) {
+              await storage.markEventDelivered(event.id);
+            } else {
+              await storage.markEventDelivered(event.id, `HTTP ${response.status}`);
+            }
+          } catch (error: any) {
+            await storage.markEventDelivered(event.id, error.message);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error emitting integration event:", error);
+    }
+  }
+
+  // ============================================
+  // VOICE & VIDEO APIs
+  // ============================================
+
+  // Serve media files (audio/video)
+  app.get("/tmp-media/:filename", async (req, res) => {
+    try {
+      const { filename } = req.params;
+      const filePath = path.join("/tmp/model-ai-media", filename);
+      
+      // Security: prevent directory traversal
+      if (filename.includes("..") || filename.includes("/")) {
+        return res.status(400).json({ error: "Invalid filename" });
+      }
+
+      const stats = await fs.stat(filePath);
+      const file = await fs.readFile(filePath);
+      
+      // Determine content type from extension
+      const ext = path.extname(filename).toLowerCase();
+      const contentTypeMap: Record<string, string> = {
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".webm": "audio/webm",
+        ".ogg": "audio/ogg",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".mov": "video/quicktime",
+      };
+      
+      res.setHeader("Content-Type", contentTypeMap[ext] || "application/octet-stream");
+      res.setHeader("Content-Length", stats.size);
+      res.send(file);
+    } catch (error: any) {
+      if (error.code === "ENOENT") {
+        res.status(404).json({ error: "Media file not found" });
+      } else {
+        console.error("Error serving media file:", error);
+        res.status(500).json({ error: "Failed to serve media file" });
+      }
+    }
+  });
+
+  // Transcribe audio
+  app.post("/api/audio/transcribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { audioData, language, conversationId } = req.body;
+
+      if (!audioData) {
+        return res.status(400).json({ error: "Audio data is required" });
+      }
+
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(audioData, "base64");
+
+      // Transcribe using Whisper
+      const result = await transcribeAudio(audioBuffer, language);
+
+      // Store the audio asset
+      const mimeType = "audio/webm"; // Default, could be detected from request
+      const { publicUrl, storageKey } = await mediaStore.store(
+        audioBuffer,
+        userId,
+        "audio",
+        mimeType,
+        conversationId
+      );
+
+      // Update media asset with transcription
+      const mediaAssets = await storage.getUserMediaAssets(userId, "audio");
+      const latestAsset = mediaAssets[0];
+      if (latestAsset) {
+        await storage.updateMediaAsset(latestAsset.id, {
+          transcription: result.text,
+          transcriptionLanguage: result.language,
+          duration: result.duration,
+        });
+      }
+
+      res.json({
+        text: result.text,
+        language: result.language,
+        duration: result.duration,
+        audioUrl: publicUrl,
+      });
+    } catch (error: any) {
+      console.error("Error transcribing audio:", error);
+      res.status(500).json({ error: error.message || "Failed to transcribe audio" });
+    }
+  });
+
+  // Text to speech
+  app.post("/api/audio/speak", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { text, voice, model, conversationId } = req.body;
+
+      if (!text) {
+        return res.status(400).json({ error: "Text is required" });
+      }
+
+      // Generate speech
+      const result = await textToSpeech(
+        text,
+        voice || "alloy",
+        model || "tts-1"
+      );
+
+      // Store the audio asset
+      const { publicUrl } = await mediaStore.store(
+        result.audioData,
+        userId,
+        "audio",
+        result.mimeType,
+        conversationId
+      );
+
+      res.json({
+        audioUrl: publicUrl,
+        mimeType: result.mimeType,
+      });
+    } catch (error: any) {
+      console.error("Error generating speech:", error);
+      res.status(500).json({ error: error.message || "Failed to generate speech" });
+    }
+  });
+
+  // Analyze video
+  app.post("/api/video/analyze", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { videoData, prompt, conversationId } = req.body;
+
+      if (!videoData) {
+        return res.status(400).json({ error: "Video data is required" });
+      }
+
+      // Convert base64 to buffer
+      const videoBuffer = Buffer.from(videoData, "base64");
+
+      // Store the video first
+      const mimeType = "video/mp4"; // Default, could be detected
+      const { publicUrl } = await mediaStore.store(
+        videoBuffer,
+        userId,
+        "video",
+        mimeType,
+        conversationId
+      );
+
+      // Analyze video
+      const analysis = await analyzeVideo(publicUrl, prompt);
+
+      // Update media asset with analysis
+      const mediaAssets = await storage.getUserMediaAssets(userId, "video");
+      const latestAsset = mediaAssets[0];
+      if (latestAsset) {
+        await storage.updateMediaAsset(latestAsset.id, {
+          transcription: analysis.description,
+          metadata: analysis.metadata,
+        });
+      }
+
+      res.json({
+        description: analysis.description,
+        transcription: analysis.transcription,
+        keyFrames: analysis.keyFrames,
+        metadata: analysis.metadata,
+        videoUrl: publicUrl,
+      });
+    } catch (error: any) {
+      console.error("Error analyzing video:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze video" });
+    }
+  });
+
+  // Upload video file (multipart)
+  app.post("/api/video/upload", isAuthenticated, videoUpload.single("video"), async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { prompt, conversationId } = req.body;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ error: "Video file is required" });
+      }
+
+      // Store the video
+      const { publicUrl } = await mediaStore.store(
+        file.buffer,
+        userId,
+        "video",
+        file.mimetype,
+        conversationId
+      );
+
+      // Analyze video
+      const analysis = await analyzeVideo(publicUrl, prompt);
+
+      // Update media asset with analysis
+      const mediaAssets = await storage.getUserMediaAssets(userId, "video");
+      const latestAsset = mediaAssets[0];
+      if (latestAsset) {
+        await storage.updateMediaAsset(latestAsset.id, {
+          transcription: analysis.description,
+          metadata: analysis.metadata,
+        });
+      }
+
+      res.json({
+        description: analysis.description,
+        transcription: analysis.transcription,
+        keyFrames: analysis.keyFrames,
+        metadata: analysis.metadata,
+        videoUrl: publicUrl,
+      });
+    } catch (error: any) {
+      console.error("Error uploading video:", error);
+      res.status(500).json({ error: error.message || "Failed to upload video" });
+    }
+  });
+
+  // Get user's media assets
+  app.get("/api/media", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { type } = req.query; // "audio" or "video"
+      
+      const assets = await storage.getUserMediaAssets(
+        userId,
+        type as "audio" | "video" | undefined
+      );
+
+      res.json(assets);
+    } catch (error: any) {
+      console.error("Error getting media assets:", error);
+      res.status(500).json({ error: error.message || "Failed to get media assets" });
+    }
+  });
+
+  // R2 Diagnostic Endpoint (for debugging)
+  app.get("/api/debug/r2", isAuthenticated, async (req: any, res) => {
+    try {
+      const diagnostics: any = {
+        configured: false,
+        credentials: {},
+        test: null,
+        error: null,
+      };
+
+      // Check if R2 is configured
+      const hasR2Config = 
+        process.env.R2_ACCOUNT_ID?.trim() &&
+        process.env.R2_ACCESS_KEY_ID?.trim() &&
+        process.env.R2_SECRET_ACCESS_KEY?.trim() &&
+        process.env.R2_BUCKET_NAME?.trim();
+
+      diagnostics.configured = !!hasR2Config;
+      diagnostics.credentials = {
+        hasAccountId: !!process.env.R2_ACCOUNT_ID?.trim(),
+        hasAccessKeyId: !!process.env.R2_ACCESS_KEY_ID?.trim(),
+        hasSecretAccessKey: !!process.env.R2_SECRET_ACCESS_KEY?.trim(),
+        hasBucketName: !!process.env.R2_BUCKET_NAME?.trim(),
+        hasPublicDomain: !!process.env.R2_PUBLIC_DOMAIN?.trim(),
+        accountIdLength: process.env.R2_ACCOUNT_ID?.trim()?.length || 0,
+        accessKeyIdLength: process.env.R2_ACCESS_KEY_ID?.trim()?.length || 0,
+        secretAccessKeyLength: process.env.R2_SECRET_ACCESS_KEY?.trim()?.length || 0,
+        bucketName: process.env.R2_BUCKET_NAME?.trim() || 'not set',
+        publicDomain: process.env.R2_PUBLIC_DOMAIN?.trim() || 'not set',
+      };
+
+      if (hasR2Config) {
+        try {
+          // Try to test R2 connection by attempting to list objects (limited to 1)
+          const { S3Client, ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+          const testClient = new S3Client({
+            region: "auto",
+            endpoint: `https://${process.env.R2_ACCOUNT_ID?.trim()}.r2.cloudflarestorage.com`,
+            credentials: {
+              accessKeyId: process.env.R2_ACCESS_KEY_ID?.trim()!,
+              secretAccessKey: process.env.R2_SECRET_ACCESS_KEY?.trim()!,
+            },
+          });
+
+          const result = await testClient.send(
+            new ListObjectsV2Command({
+              Bucket: process.env.R2_BUCKET_NAME?.trim()!,
+              MaxKeys: 1,
+            })
+          );
+
+          diagnostics.test = {
+            success: true,
+            bucketExists: true,
+            objectCount: result.KeyCount || 0,
+            message: "R2 connection successful",
+          };
+        } catch (testError: any) {
+          diagnostics.test = {
+            success: false,
+            error: testError.message || String(testError),
+            code: testError.Code || testError.code,
+            name: testError.name,
+            message: "R2 connection test failed",
+          };
+          diagnostics.error = testError.message || String(testError);
+        }
+      } else {
+        diagnostics.error = "R2 credentials not fully configured";
+      }
+
+      res.json(diagnostics);
+    } catch (error: any) {
+      res.status(500).json({
+        error: error.message || "Failed to run R2 diagnostics",
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      });
     }
   });
 

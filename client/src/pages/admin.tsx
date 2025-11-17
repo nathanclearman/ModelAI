@@ -247,9 +247,9 @@ export default function Admin() {
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
             <span>Admin Access</span>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4">Admin Dashboard</h1>
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4">ModelAI Admin Dashboard</h1>
           <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-            Manage users, monitor platform activity, and view system statistics
+            Manage ModelAI users, monitor platform activity, and view system statistics
           </p>
         </div>
       </div>

@@ -139,10 +139,10 @@ export default function WorkflowsPage() {
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Zap className="w-8 h-8 text-primary" />
-              Workflow Automation
+              ModelAI Workflow Automation
             </h1>
             <p className="text-muted-foreground mt-1">
-              Chain AI tasks together to automate complex workflows
+              Chain ModelAI tasks together to automate complex workflows
             </p>
           </div>
           <Button onClick={handleCreateWorkflow} data-testid="button-create-workflow">

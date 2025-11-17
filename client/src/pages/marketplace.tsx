@@ -83,10 +83,10 @@ export default function Marketplace() {
     <div className="space-y-12">
       <div className="py-12">
         <h1 className="text-5xl md:text-6xl font-semibold tracking-tight mb-4">
-          Model Marketplace
+          ModelAI Marketplace
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-          Discover and clone AI models shared by the community
+          Discover and clone ModelAI models shared by the community
         </p>
       </div>
 

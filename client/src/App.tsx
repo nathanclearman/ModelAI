@@ -25,6 +25,8 @@ import Workspaces from "@/pages/workspaces";
 import Workflows from "@/pages/workflows";
 import FineTuning from "@/pages/fine-tuning";
 import Webhooks from "@/pages/webhooks";
+import Integrations from "@/pages/integrations";
+import Documentation from "@/pages/documentation";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -58,7 +60,9 @@ function Router() {
       {isAuthenticated && <Route path="/workspaces" component={Workspaces} />}
       {isAuthenticated && <Route path="/workflows" component={Workflows} />}
       {isAuthenticated && <Route path="/webhooks" component={Webhooks} />}
+      {isAuthenticated && <Route path="/integrations" component={Integrations} />}
       {isAuthenticated && <Route path="/fine-tuning" component={FineTuning} />}
+      {isAuthenticated && <Route path="/documentation" component={Documentation} />}
       {isAuthenticated && <Route path="/admin" component={Admin} />}
       <Route component={NotFound} />
     </Switch>
@@ -97,15 +101,19 @@ function AuthenticatedLayout({ style, children }: { style: any; children: React.
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1">
-          <header className="flex items-center justify-between px-8 py-6 backdrop-blur-xl bg-background/95 sticky top-0 z-50 border-b border-border/40 shadow-sm">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <header className="flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-background/80 sticky top-0 z-50 border-b border-border/30">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger data-testid="button-sidebar-toggle" className="text-muted-foreground hover:text-foreground" />
+              <div className="h-4 w-px bg-border/50" />
+              <span className="text-xs font-mono text-muted-foreground/60 tracking-wider">v2.0.1</span>
+            </div>
             <div className="flex items-center gap-3">
               <UserMenu />
               <ThemeToggle />
             </div>
           </header>
-          <main className="flex-1 overflow-auto bg-gradient-to-br from-background via-background to-background/95">
-            <div className="container max-w-7xl mx-auto px-8 md:px-12 lg:px-16 py-8">
+          <main className="flex-1 overflow-auto bg-background">
+            <div className="container max-w-[1400px] mx-auto px-6 md:px-10 lg:px-14 py-10">
               {children}
             </div>
           </main>

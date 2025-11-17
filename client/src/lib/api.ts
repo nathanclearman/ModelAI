@@ -137,3 +137,110 @@ export async function analyzeImage(
 
   return response.json();
 }
+
+export async function executeCode(
+  code: string,
+  language: "python" | "javascript"
+): Promise<{ output: string; error?: string; executionTime: number }> {
+  const response = await fetch("/api/execute-code", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, language }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to execute code");
+  }
+
+  return response.json();
+}
+
+// Conversation Branching APIs
+export async function createConversationBranch(
+  conversationId: string,
+  parentMessageId: string,
+  branchName?: string,
+  initialMessage?: any
+) {
+  const response = await fetch(`/api/conversations/${conversationId}/branches`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ parentMessageId, branchName, initialMessage }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to create branch");
+  }
+  return response.json();
+}
+
+export async function getConversationBranches(conversationId: string) {
+  const response = await fetch(`/api/conversations/${conversationId}/branches`);
+  if (!response.ok) throw new Error("Failed to get branches");
+  return response.json();
+}
+
+export async function switchConversationBranch(conversationId: string, branchId: string | null) {
+  const response = await fetch(`/api/conversations/${conversationId}/switch-branch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ branchId }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to switch branch");
+  }
+  return response.json();
+}
+
+// Prompt Template APIs
+export async function getPromptTemplates() {
+  const response = await fetch("/api/prompt-templates");
+  if (!response.ok) throw new Error("Failed to get templates");
+  return response.json();
+}
+
+export async function getPublicPromptTemplates(category?: string) {
+  const url = category 
+    ? `/api/prompt-templates/public?category=${encodeURIComponent(category)}`
+    : "/api/prompt-templates/public";
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Failed to get public templates");
+  return response.json();
+}
+
+export async function createPromptTemplate(data: any) {
+  const response = await fetch("/api/prompt-templates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to create template");
+  }
+  return response.json();
+}
+
+export async function usePromptTemplate(templateId: string) {
+  const response = await fetch(`/api/prompt-templates/${templateId}/use`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error("Failed to use template");
+  return response.json();
+}
+
+// Workflow APIs
+export async function runWorkflow(workflowId: string, input?: any) {
+  const response = await fetch(`/api/workflows/${workflowId}/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to run workflow");
+  }
+  return response.json();
+}

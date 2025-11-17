@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, sum, count, lt } from "drizzle-orm";
+import { eq, desc, and, sql, sum, count, lt, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { neonConfig, Pool } from "@neondatabase/serverless";
 import ws from "ws";
@@ -52,6 +52,23 @@ import {
   type InsertFineTuningJob,
   type WebhookConfiguration,
   type InsertWebhookConfiguration,
+  conversationBranches,
+  type ConversationBranch,
+  type InsertConversationBranch,
+  promptTemplates,
+  type PromptTemplate,
+  type InsertPromptTemplate,
+  promptTemplateRatings,
+  type PromptTemplateRating,
+  integrations,
+  type Integration,
+  type InsertIntegration,
+  integrationEvents,
+  type IntegrationEvent,
+  type InsertIntegrationEvent,
+  mediaAssets,
+  type MediaAsset,
+  type InsertMediaAsset,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -1438,6 +1455,304 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(webhookConfigurations)
       .where(and(eq(webhookConfigurations.id, id), eq(webhookConfigurations.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Conversation branching methods
+  async createConversationBranch(branch: InsertConversationBranch): Promise<ConversationBranch> {
+    const [created] = await db
+      .insert(conversationBranches)
+      .values(branch)
+      .returning();
+    return created;
+  }
+
+  async getConversationBranches(conversationId: string): Promise<ConversationBranch[]> {
+    return db
+      .select()
+      .from(conversationBranches)
+      .where(eq(conversationBranches.conversationId, conversationId))
+      .orderBy(desc(conversationBranches.createdAt));
+  }
+
+  async getConversationBranch(id: string): Promise<ConversationBranch | undefined> {
+    const result = await db
+      .select()
+      .from(conversationBranches)
+      .where(eq(conversationBranches.id, id));
+    return result[0];
+  }
+
+  async updateConversationBranch(id: string, data: Partial<InsertConversationBranch>): Promise<ConversationBranch | undefined> {
+    const result = await db
+      .update(conversationBranches)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(conversationBranches.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteConversationBranch(id: string): Promise<boolean> {
+    const result = await db
+      .delete(conversationBranches)
+      .where(eq(conversationBranches.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Prompt template methods
+  async createPromptTemplate(userId: string, template: InsertPromptTemplate): Promise<PromptTemplate> {
+    const [created] = await db
+      .insert(promptTemplates)
+      .values({ ...template, userId })
+      .returning();
+    return created;
+  }
+
+  async getPromptTemplate(userId: string, id: string): Promise<PromptTemplate | undefined> {
+    const result = await db
+      .select()
+      .from(promptTemplates)
+      .where(and(eq(promptTemplates.id, id), eq(promptTemplates.userId, userId)));
+    return result[0];
+  }
+
+  async getPublicPromptTemplates(category?: string): Promise<PromptTemplate[]> {
+    if (category) {
+      return db
+        .select()
+        .from(promptTemplates)
+        .where(and(eq(promptTemplates.isPublic, 1), eq(promptTemplates.category, category)))
+        .orderBy(desc(promptTemplates.usageCount));
+    }
+    
+    return db
+      .select()
+      .from(promptTemplates)
+      .where(eq(promptTemplates.isPublic, 1))
+      .orderBy(desc(promptTemplates.usageCount));
+  }
+
+  async getUserPromptTemplates(userId: string): Promise<PromptTemplate[]> {
+    return db
+      .select()
+      .from(promptTemplates)
+      .where(eq(promptTemplates.userId, userId))
+      .orderBy(desc(promptTemplates.updatedAt));
+  }
+
+  async updatePromptTemplate(userId: string, id: string, data: Partial<InsertPromptTemplate>): Promise<PromptTemplate | undefined> {
+    const result = await db
+      .update(promptTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(promptTemplates.id, id), eq(promptTemplates.userId, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async deletePromptTemplate(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(promptTemplates)
+      .where(and(eq(promptTemplates.id, id), eq(promptTemplates.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async incrementPromptTemplateUsage(id: string): Promise<void> {
+    await db
+      .update(promptTemplates)
+      .set({ usageCount: sql`${promptTemplates.usageCount} + 1` })
+      .where(eq(promptTemplates.id, id));
+  }
+
+  async ratePromptTemplate(templateId: string, userId: string, rating: number): Promise<PromptTemplateRating> {
+    // Check if user already rated
+    const existing = await db
+      .select()
+      .from(promptTemplateRatings)
+      .where(and(eq(promptTemplateRatings.templateId, templateId), eq(promptTemplateRatings.userId, userId)));
+
+    if (existing.length > 0) {
+      // Update existing rating
+      const [updated] = await db
+        .update(promptTemplateRatings)
+        .set({ rating })
+        .where(and(eq(promptTemplateRatings.templateId, templateId), eq(promptTemplateRatings.userId, userId)))
+        .returning();
+      
+      // Recalculate average rating
+      await this.updatePromptTemplateRating(templateId);
+      return updated;
+    } else {
+      // Create new rating
+      const [created] = await db
+        .insert(promptTemplateRatings)
+        .values({ templateId, userId, rating })
+        .returning();
+      
+      // Recalculate average rating
+      await this.updatePromptTemplateRating(templateId);
+      return created;
+    }
+  }
+
+  private async updatePromptTemplateRating(templateId: string): Promise<void> {
+    const ratings = await db
+      .select()
+      .from(promptTemplateRatings)
+      .where(eq(promptTemplateRatings.templateId, templateId));
+    
+    if (ratings.length > 0) {
+      const avgRating = Math.round(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length);
+      await db
+        .update(promptTemplates)
+        .set({ rating: avgRating, ratingCount: ratings.length })
+        .where(eq(promptTemplates.id, templateId));
+    }
+  }
+
+  // Integration methods
+  async createIntegration(userId: string, integration: InsertIntegration, apiKey: string): Promise<Integration> {
+    const [created] = await db
+      .insert(integrations)
+      .values({ ...integration, userId, apiKey })
+      .returning();
+    return created;
+  }
+
+  async getIntegration(userId: string, id: string): Promise<Integration | undefined> {
+    const result = await db
+      .select()
+      .from(integrations)
+      .where(and(eq(integrations.id, id), eq(integrations.userId, userId)));
+    return result[0];
+  }
+
+  async getIntegrationByApiKey(apiKey: string): Promise<Integration | undefined> {
+    const result = await db
+      .select()
+      .from(integrations)
+      .where(eq(integrations.apiKey, apiKey));
+    return result[0];
+  }
+
+  async getUserIntegrations(userId: string): Promise<Integration[]> {
+    return db
+      .select()
+      .from(integrations)
+      .where(eq(integrations.userId, userId))
+      .orderBy(desc(integrations.createdAt));
+  }
+
+  async updateIntegration(userId: string, id: string, data: Partial<InsertIntegration>): Promise<Integration | undefined> {
+    const result = await db
+      .update(integrations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(integrations.id, id), eq(integrations.userId, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async deleteIntegration(userId: string, id: string): Promise<boolean> {
+    const result = await db
+      .delete(integrations)
+      .where(and(eq(integrations.id, id), eq(integrations.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async updateIntegrationLastUsed(id: string): Promise<void> {
+    await db
+      .update(integrations)
+      .set({ lastUsed: new Date() })
+      .where(eq(integrations.id, id));
+  }
+
+  // Integration events
+  async createIntegrationEvent(event: InsertIntegrationEvent): Promise<IntegrationEvent> {
+    const [created] = await db
+      .insert(integrationEvents)
+      .values(event)
+      .returning();
+    return created;
+  }
+
+  async getPendingIntegrationEvents(integrationId: string): Promise<IntegrationEvent[]> {
+    return db
+      .select()
+      .from(integrationEvents)
+      .where(and(
+        eq(integrationEvents.integrationId, integrationId),
+        eq(integrationEvents.delivered, false)
+      ))
+      .orderBy(desc(integrationEvents.createdAt))
+      .limit(100);
+  }
+
+  async markEventDelivered(eventId: string, error?: string): Promise<void> {
+    await db
+      .update(integrationEvents)
+      .set({
+        delivered: true,
+        deliveredAt: error ? undefined : new Date(),
+        error: error || undefined,
+      })
+      .where(eq(integrationEvents.id, eventId));
+  }
+
+  // Media asset methods
+  async createMediaAsset(asset: InsertMediaAsset): Promise<MediaAsset> {
+    const [created] = await db
+      .insert(mediaAssets)
+      .values(asset)
+      .returning();
+    return created;
+  }
+
+  async getMediaAsset(id: string): Promise<MediaAsset | undefined> {
+    const result = await db
+      .select()
+      .from(mediaAssets)
+      .where(eq(mediaAssets.id, id));
+    return result[0];
+  }
+
+  async getUserMediaAssets(userId: string, mediaType?: "audio" | "video"): Promise<MediaAsset[]> {
+    const conditions = [eq(mediaAssets.userId, userId)];
+    if (mediaType) {
+      conditions.push(eq(mediaAssets.mediaType, mediaType));
+    }
+    return db
+      .select()
+      .from(mediaAssets)
+      .where(and(...conditions))
+      .orderBy(desc(mediaAssets.createdAt));
+  }
+
+  async getExpiredMediaAssets(): Promise<MediaAsset[]> {
+    return db
+      .select()
+      .from(mediaAssets)
+      .where(and(
+        isNotNull(mediaAssets.expiresAt),
+        lt(mediaAssets.expiresAt, new Date())
+      ));
+  }
+
+  async updateMediaAsset(id: string, data: Partial<InsertMediaAsset>): Promise<MediaAsset | undefined> {
+    const result = await db
+      .update(mediaAssets)
+      .set(data)
+      .where(eq(mediaAssets.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteMediaAsset(id: string): Promise<boolean> {
+    const result = await db
+      .delete(mediaAssets)
+      .where(eq(mediaAssets.id, id))
       .returning();
     return result.length > 0;
   }
