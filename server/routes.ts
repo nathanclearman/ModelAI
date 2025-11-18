@@ -2213,11 +2213,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/workflows", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
+      console.log("[WorkflowAPI] Creating workflow:", {
+        userId,
+        name: req.body.name,
+        stepsCount: req.body.steps?.length || 0,
+        triggerType: req.body.triggerType,
+      });
       const workflow = await storage.createWorkflow(userId, req.body);
+      console.log("[WorkflowAPI] Workflow created successfully:", workflow.id);
       res.json(workflow);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating workflow:", error);
-      res.status(500).json({ error: "Failed to create workflow" });
+      const errorMessage = error.message || "Failed to create workflow";
+      res.status(500).json({ error: errorMessage, details: error.stack });
     }
   });
 
@@ -2238,14 +2246,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/workflows/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const workflow = await storage.updateWorkflow(userId, req.params.id, req.body);
+      const workflowId = req.params.id;
+      console.log("[WorkflowAPI] Updating workflow:", {
+        userId,
+        workflowId,
+        name: req.body.name,
+        stepsCount: req.body.steps?.length || 0,
+        triggerType: req.body.triggerType,
+      });
+      const workflow = await storage.updateWorkflow(userId, workflowId, req.body);
       if (!workflow) {
+        console.error("[WorkflowAPI] Workflow not found:", workflowId);
         return res.status(404).json({ error: "Workflow not found" });
       }
+      console.log("[WorkflowAPI] Workflow updated successfully:", workflowId);
       res.json(workflow);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating workflow:", error);
-      res.status(500).json({ error: "Failed to update workflow" });
+      const errorMessage = error.message || "Failed to update workflow";
+      res.status(500).json({ error: errorMessage, details: error.stack });
     }
   });
 

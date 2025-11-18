@@ -87,12 +87,51 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
 
   const saveMutation = useMutation({
     mutationFn: async (data: Workflow) => {
-      if (workflow?.id) {
-        const response = await apiRequest("PATCH", `/api/workflows/${workflow.id}`, data);
-        return await response.json();
-      } else {
-        const response = await apiRequest("POST", "/api/workflows", data);
-        return await response.json();
+      try {
+        console.log("[WorkflowEditor] Saving workflow:", {
+          isUpdate: !!workflow?.id,
+          workflowId: workflow?.id,
+          data: {
+            name: data.name,
+            description: data.description,
+            triggerType: data.triggerType,
+            enabled: data.enabled,
+            stepsCount: data.steps.length,
+          },
+        });
+
+        if (workflow?.id) {
+          const response = await apiRequest("PATCH", `/api/workflows/${workflow.id}`, data);
+          const result = await response.json();
+          console.log("[WorkflowEditor] Workflow updated successfully:", result);
+          return result;
+        } else {
+          const response = await apiRequest("POST", "/api/workflows", data);
+          const result = await response.json();
+          console.log("[WorkflowEditor] Workflow created successfully:", result);
+          return result;
+        }
+      } catch (error: any) {
+        console.error("[WorkflowEditor] Save error:", error);
+        // Try to extract more detailed error message
+        let errorMessage = error.message || "Failed to save workflow";
+        if (error.message?.includes(":")) {
+          // If error message contains JSON or detailed info, try to parse it
+          try {
+            const errorText = error.message.split(":")[1]?.trim();
+            if (errorText) {
+              const parsed = JSON.parse(errorText);
+              if (parsed.error) {
+                errorMessage = parsed.error;
+              } else if (parsed.message) {
+                errorMessage = parsed.message;
+              }
+            }
+          } catch {
+            // If parsing fails, use original message
+          }
+        }
+        throw new Error(errorMessage);
       }
     },
     onSuccess: () => {
@@ -104,9 +143,10 @@ export function WorkflowEditor({ workflow, onClose }: { workflow: Workflow | nul
       onClose();
     },
     onError: (error: any) => {
+      console.error("[WorkflowEditor] Mutation error:", error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to save workflow",
+        title: "Error saving workflow",
+        description: error.message || "Failed to save workflow. Please check the console for details.",
         variant: "destructive",
       });
     },
